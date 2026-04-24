@@ -11,11 +11,11 @@ export const FALLBACK_HTML = `<!doctype html>
     <link rel="preconnect" href="https://challenges.cloudflare.com" />
     <link rel="dns-prefetch" href="https://challenges.cloudflare.com" />
     <script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit" async></script>
-    <script type="module" crossorigin src="/assets/index-BX8F4ngW.js"></script>
-    <link rel="stylesheet" crossorigin href="/assets/index-DIgCrHtn.css">
+    <script type="module" crossorigin src="/assets/index-bW6aM0Jz.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-DD6CLiIX.css">
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root"></div>
   </body>
 </html>
 `

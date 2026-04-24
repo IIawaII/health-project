@@ -23,7 +23,7 @@ export const onRequestPost = async (context: EventContext<Env, string, Record<st
     }
 
     const user = JSON.parse(userData);
-    const body = await context.request.json() as { currentPassword: string; newPassword: string };
+    const body = await context.request.json<{ currentPassword: string; newPassword: string }>();
 
     if (!body.currentPassword || !body.newPassword) {
       return errorResponse('请填写完整信息', 400);

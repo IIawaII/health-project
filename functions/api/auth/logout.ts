@@ -1,4 +1,3 @@
-import type { PagesFunction } from '@cloudflare/workers-types';
 import { deleteToken } from '../../lib/auth';
 import { jsonResponse, errorResponse } from '../../lib/response';
 

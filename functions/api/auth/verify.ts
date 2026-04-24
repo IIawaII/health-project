@@ -1,4 +1,3 @@
-import type { PagesFunction } from '@cloudflare/workers-types';
 import { jsonResponse, errorResponse } from '../../lib/response';
 
 interface TokenData {
@@ -33,9 +32,9 @@ export const onRequestGet = async (context: EventContext<{ AUTH_TOKENS: KVNamesp
     let avatar: string | undefined;
     let email = tokenData.email;
     if (userDataStr) {
-      const userData = JSON.parse(userDataStr);
-      avatar = userData.avatar;
-      if (userData.email) {
+      const userData = JSON.parse(userDataStr) as Record<string, unknown>;
+      avatar = typeof userData.avatar === 'string' ? userData.avatar : undefined;
+      if (typeof userData.email === 'string') {
         email = userData.email;
       }
     }

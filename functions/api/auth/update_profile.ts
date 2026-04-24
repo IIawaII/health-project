@@ -34,7 +34,7 @@ export const onRequestPost = async (context: EventContext<Env, string, Record<st
       user = { id: userId, username: tokenData.username, email: tokenData.email };
     }
 
-    const body = await context.request.json() as { email?: string; avatar?: string };
+    const body = await context.request.json<{ email?: string; avatar?: string }>();
 
     // 更新邮箱
     if (body.email && body.email !== user.email) {

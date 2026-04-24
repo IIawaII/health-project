@@ -1,4 +1,3 @@
-import type { PagesFunction } from '@cloudflare/workers-types';
 import { jsonResponse, errorResponse } from '../../lib/response';
 
 interface CheckRequest {
@@ -8,7 +7,7 @@ interface CheckRequest {
 
 export const onRequestPost = async (context: EventContext<{ USERS: KVNamespace }, string, Record<string, unknown>>) => {
   try {
-    const body = await context.request.json() as CheckRequest;
+    const body = await context.request.json<CheckRequest>();
     const { username, email } = body;
 
     if (username !== undefined) {

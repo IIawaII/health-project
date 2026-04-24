@@ -1,4 +1,3 @@
-import type { PagesFunction } from '@cloudflare/workers-types';
 import { hashPassword, generateToken } from '../../lib/crypto';
 import { saveToken } from '../../lib/auth';
 import { jsonResponse, errorResponse } from '../../lib/response';
@@ -35,13 +34,13 @@ async function verifyTurnstile(token: string, secretKey: string, ip?: string): P
     },
   });
 
-  const data = await response.json() as { success: boolean };
+  const data = await response.json<{ success: boolean }>();
   return data.success;
 }
 
 export const onRequestPost = async (context: EventContext<{ TURNSTILE_SECRET_KEY: string; USERS: KVNamespace; AUTH_TOKENS: KVNamespace }, string, Record<string, unknown>>) => {
   try {
-    const body = await context.request.json() as RegisterRequest;
+    const body = await context.request.json<RegisterRequest>();
     const { username, email, password, turnstileToken } = body;
 
     // 验证输入

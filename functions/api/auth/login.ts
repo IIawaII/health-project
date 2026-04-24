@@ -15,6 +15,7 @@ interface User {
   passwordHash: string;
   createdAt: string;
   updatedAt: string;
+  avatar?: string;
 }
 
 async function verifyTurnstile(token: string, secretKey: string, ip?: string): Promise<boolean> {
@@ -34,7 +35,7 @@ async function verifyTurnstile(token: string, secretKey: string, ip?: string): P
       },
     });
 
-    const data = await response.json() as { success: boolean };
+    const data = await response.json<{ success: boolean }>();
     return data.success;
   } catch {
     return false;
@@ -43,7 +44,7 @@ async function verifyTurnstile(token: string, secretKey: string, ip?: string): P
 
 export const onRequestPost = async (context: EventContext<{ TURNSTILE_SECRET_KEY: string; USERS: KVNamespace; AUTH_TOKENS: KVNamespace }, string, Record<string, unknown>>) => {
   try {
-    const body = await context.request.json() as LoginRequest;
+    const body = await context.request.json<LoginRequest>();
     const { usernameOrEmail, password, turnstileToken } = body;
 
     // 验证输入
@@ -111,7 +112,7 @@ export const onRequestPost = async (context: EventContext<{ TURNSTILE_SECRET_KEY
         id: user.id,
         username: user.username,
         email: user.email,
-        avatar: (user as unknown as Record<string, unknown>).avatar,
+        avatar: user.avatar,
       },
     }, 200);
   } catch (error) {
