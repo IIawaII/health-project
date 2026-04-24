@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 declare global {
   interface Window {
@@ -26,6 +26,11 @@ interface TurnstileWidgetProps {
   siteKey: string;
 }
 
+function getTurnstileSize(): 'normal' | 'compact' {
+  if (typeof window === 'undefined') return 'normal';
+  return window.innerWidth < 640 ? 'compact' : 'normal';
+}
+
 export function TurnstileWidget({
   onVerify,
   onError,
@@ -34,6 +39,23 @@ export function TurnstileWidget({
 }: TurnstileWidgetProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const widgetIdRef = useRef<string | null>(null);
+  const [size, setSize] = useState<'normal' | 'compact'>(getTurnstileSize);
+
+  useEffect(() => {
+    const handleResize = () => {
+      const newSize = getTurnstileSize();
+      setSize((prev) => {
+        if (prev !== newSize) {
+          // 尺寸变化时强制重新渲染
+          return newSize;
+        }
+        return prev;
+      });
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   useEffect(() => {
     const SCRIPT_ID = 'turnstile-script';
@@ -43,13 +65,22 @@ export function TurnstileWidget({
     const initWidget = () => {
       if (cancelled) return;
       if (window.turnstile && containerRef.current) {
+        // 移除旧 widget 避免重复渲染
+        if (widgetIdRef.current) {
+          try {
+            window.turnstile.remove(widgetIdRef.current);
+          } catch {
+            // 忽略移除失败
+          }
+          widgetIdRef.current = null;
+        }
         widgetIdRef.current = window.turnstile.render(containerRef.current, {
           sitekey: siteKey,
           callback: onVerify,
           'error-callback': onError,
           'expired-callback': onExpire,
           theme: 'light',
-          size: 'normal',
+          size,
         });
       } else {
         // window.turnstile 尚未就绪（脚本还在加载中），100ms 后重试
@@ -80,11 +111,11 @@ export function TurnstileWidget({
         widgetIdRef.current = null;
       }
     };
-  }, [onVerify, onError, onExpire, siteKey]);
+  }, [onVerify, onError, onExpire, siteKey, size]);
 
   return (
-    <div 
-      ref={containerRef} 
+    <div
+      ref={containerRef}
       className="flex justify-center"
       data-turnstile-widget
     />

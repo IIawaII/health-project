@@ -17,21 +17,37 @@ jobs:
           node-version: '20'
 
       - name: Install dependencies
-        run: npm ci
+        run: npm install
 
-      - name: Inject KV namespace IDs
+      - name: Inject config
         run: |
           sed -i "s/KV_USERS_ID/${{ secrets.KV_USERS_ID }}/g" wrangler.toml
           sed -i "s/KV_AUTH_TOKENS_ID/${{ secrets.KV_AUTH_TOKENS_ID }}/g" wrangler.toml
-
-      - name: Sync secrets to Cloudflare
-        run: |
-          echo "${{ secrets.TURNSTILE_SECRET_KEY }}" | npx wrangler secret put TURNSTILE_SECRET_KEY
-          npx wrangler vars put TURNSTILE_SITE_KEY="${{ secrets.TURNSTILE_SITE_KEY }}"
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          sed -i "s/ACCOUNT_ID/${{ secrets.CLOUDFLARE_ACCOUNT_ID }}/g" wrangler.toml
 
       - name: Deploy to Cloudflare
-        uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: npx wrangler deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+      - name: Sync secrets to Cloudflare Dashboard
+        run: |
+          ACCOUNT_ID="${{ secrets.CLOUDFLARE_ACCOUNT_ID }}"
+          TOKEN="${{ secrets.CLOUDFLARE_API_TOKEN }}"
+          WORKER_NAME="health-project"
+
+          # Sync TURNSTILE_SECRET_KEY
+          curl -s -X PUT "https://api.cloudflare.com/client/v4/accounts/$ACCOUNT_ID/workers/scripts/$WORKER_NAME/secrets" \
+            -H "Authorization: Bearer $TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "{\"name\":\"TURNSTILE_SECRET_KEY\",\"text\":\"${{ secrets.TURNSTILE_SECRET_KEY }}\",\"type\":\"secret_text\"}" || echo "Secret sync skipped or failed"
+
+          # Sync TURNSTILE_SITE_KEY as variable
+          curl -s -X PUT "https://api.cloudflare.com/client/v4/accounts/$ACCOUNT_ID/workers/scripts/$WORKER_NAME/secrets" \
+            -H "Authorization: Bearer $TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "{\"name\":\"TURNSTILE_SITE_KEY\",\"text\":\"${{ secrets.TURNSTILE_SITE_KEY }}\",\"type\":\"secret_text\"}" || echo "Variable sync skipped or failed"
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

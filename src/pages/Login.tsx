@@ -87,10 +87,10 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
+    <div className="min-h-[100dvh] bg-gradient-to-br from-slate-50 to-blue-50 flex items-start sm:items-center justify-center p-4 py-6 overflow-y-auto">
+      <div className="w-full max-w-md my-auto">
         {/* Logo */}
-        <div className="text-center mb-8">
+        <div className="text-center mb-6 sm:mb-8">
           <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-2xl shadow-lg mb-4">
             <ShieldCheck className="w-8 h-8 text-white" />
           </div>
@@ -100,7 +100,7 @@ export default function Login() {
 
         {/* Login Card */}
         <div className="bg-white rounded-2xl shadow-xl border border-slate-100 overflow-hidden">
-          <div className="p-8">
+          <div className="p-6 sm:p-8">
             <h2 className="text-xl font-semibold text-slate-800 mb-6">欢迎回来</h2>
 
             {error && (
