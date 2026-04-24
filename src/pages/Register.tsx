@@ -54,7 +54,7 @@ export default function Register() {
   const checkAvailability = async (field: 'username' | 'email', value: string) => {
     if (!value) return;
     if (field === 'email' && !validateEmail(value)) return;
-    if (field === 'username' && !/^[a-zA-Z0-9_]{3,20}$/.test(value)) return;
+    if (field === 'username' && !/^[a-zA-Z0-9_]{3,10}$/.test(value)) return;
 
     const statusSetter = field === 'username' ? setUsernameStatus : setEmailStatus;
     const errorSetter = field === 'username' ? setUsernameError : setEmailError;
@@ -123,8 +123,8 @@ export default function Register() {
 
   const handleUsernameBlur = () => {
     if (formData.username) {
-      if (!/^[a-zA-Z0-9_]{3,20}$/.test(formData.username)) {
-        setUsernameError('用户名只能包含字母、数字和下划线，长度3-20位');
+      if (!/^[a-zA-Z0-9_]{3,10}$/.test(formData.username)) {
+        setUsernameError('用户名只能包含字母、数字和下划线，长度3-10位');
       } else {
         checkAvailability('username', formData.username);
       }
@@ -152,10 +152,10 @@ export default function Register() {
       return false;
     }
 
-    if (!/^[a-zA-Z0-9_]{3,20}$/.test(formData.username)) {
-      setError('用户名只能包含字母、数字和下划线，长度3-20位');
-      return false;
-    }
+      if (!/^[a-zA-Z0-9_]{3,10}$/.test(formData.username)) {
+        setError('用户名只能包含字母、数字和下划线，长度3-10位');
+        return false;
+      }
 
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
       setError('请输入有效的邮箱地址');
@@ -246,7 +246,7 @@ export default function Register() {
                     value={formData.username}
                     onChange={handleChange}
                     onBlur={handleUsernameBlur}
-                    placeholder="3-20位字母、数字或下划线"
+                    placeholder="3-10位字母、数字或下划线"
                     className={`w-full pl-10 pr-9 py-2.5 bg-slate-50 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none ${
                       usernameError ? 'border-red-300 focus:ring-red-200' : 'border-slate-200'
                     }`}

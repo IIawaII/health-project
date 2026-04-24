@@ -134,6 +134,7 @@ export const onRequestPost = async (context: EventContext<{ TURNSTILE_SECRET_KEY
           id: user.id,
           username: user.username,
           email: user.email,
+          avatar: (user as unknown as Record<string, unknown>).avatar,
         },
       }),
       { status: 200, headers: corsHeaders }

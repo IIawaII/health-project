@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '@/context/AuthContext'
 import SettingsModal from './SettingsModal'
@@ -36,6 +36,23 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [apiSettingsOpen, setApiSettingsOpen] = useState(false)
   const [apiConfigured, setApiConfigured] = useState(hasStoredApiConfig())
+  const userMenuRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (userMenuRef.current && !userMenuRef.current.contains(event.target as Node)) {
+        setUserMenuOpen(false)
+      }
+    }
+
+    if (userMenuOpen) {
+      document.addEventListener('mousedown', handleClickOutside)
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [userMenuOpen])
 
   const handleLogout = async () => {
     await logout()
@@ -103,7 +120,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               </button>
 
               {/* User Menu */}
-              <div className="relative">
+              <div className="relative" ref={userMenuRef}>
                 <button
                   onClick={() => setUserMenuOpen(!userMenuOpen)}
                   className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-foreground-muted hover:text-foreground hover:bg-gray-100 transition-all"
@@ -120,12 +137,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
                 {/* User Dropdown */}
                 {userMenuOpen && (
-                  <>
-                    <div
-                      className="fixed inset-0 z-40"
-                      onClick={() => setUserMenuOpen(false)}
-                    />
-                    <div className="absolute right-0 mt-2 w-48 bg-white rounded-xl shadow-lg border border-gray-100 py-1 z-50 animate-fade-in">
+                  <div className="absolute right-0 mt-2 w-48 bg-white rounded-xl shadow-lg border border-gray-100 py-1 z-50 animate-fade-in">
                       <div className="px-4 py-2 border-b border-gray-100">
                         <p className="text-sm font-medium text-foreground">{user?.username}</p>
                         <p className="text-xs text-foreground-subtle truncate">{user?.email}</p>
@@ -148,7 +160,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                         退出登录
                       </button>
                     </div>
-                  </>
                 )}
               </div>
 

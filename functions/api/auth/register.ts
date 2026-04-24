@@ -59,9 +59,9 @@ export const onRequestPost = async (context: EventContext<{ TURNSTILE_SECRET_KEY
     }
 
     // 验证用户名格式
-    if (!/^[a-zA-Z0-9_]{3,20}$/.test(username)) {
+    if (!/^[a-zA-Z0-9_]{3,10}$/.test(username)) {
       return new Response(
-        JSON.stringify({ error: '用户名只能包含字母、数字和下划线，长度3-20位' }),
+        JSON.stringify({ error: '用户名只能包含字母、数字和下划线，长度3-10位' }),
         { status: 400, headers: corsHeaders }
       );
     }
