@@ -6,23 +6,29 @@ import { addSecurityHeaders } from './security'
 import { NO_CACHE } from './cache'
 import type { Env } from '../lib/env'
 
+function addNonceToScripts(html: string, nonce?: string): string {
+  if (!nonce) return html
+  return html.replace(/<script(?![^>]*\bnonce=)/g, `<script nonce="${nonce}"`)
+}
+
 export function injectClientConfig(html: string, env: Env, nonce?: string): string {
+  const htmlWithNonce = addNonceToScripts(html, nonce)
   const config: Record<string, string> = {}
   if (env.TURNSTILE_SITE_KEY) {
     config.TURNSTILE_SITE_KEY = env.TURNSTILE_SITE_KEY
   }
-  if (Object.keys(config).length === 0) return html
+  if (Object.keys(config).length === 0) return htmlWithNonce
 
   const nonceAttr = nonce ? ` nonce="${nonce}"` : ''
   const script = `<script${nonceAttr}>window.__ENV__=${JSON.stringify(config)}</script>`
 
   // 如果 HTML 中已存在 window.__ENV__（构建时注入），尝试合并而不是重复插入
-  const existingMatch = html.match(/<script[^>]*>window\.__ENV__=(\{[^<]*\})<\/script>/)
+  const existingMatch = htmlWithNonce.match(/<script[^>]*>window\.__ENV__=(\{[^<]*\})<\/script>/)
   if (existingMatch) {
     try {
       const existing = JSON.parse(existingMatch[1]) as Record<string, string>
       const merged = { ...existing, ...config }
-      return html.replace(
+      return htmlWithNonce.replace(
         /<script[^>]*>window\.__ENV__=\{[^<]*\}<\/script>/,
         `<script${nonceAttr}>window.__ENV__=${JSON.stringify(merged)}</script>`
       )
@@ -31,7 +37,7 @@ export function injectClientConfig(html: string, env: Env, nonce?: string): stri
     }
   }
 
-  return html.replace('</head>', `${script}</head>`)
+  return htmlWithNonce.replace('</head>', `${script}</head>`)
 }
 
 export async function renderSpaHtml(response: Response, env: Env, nonce: string): Promise<Response> {

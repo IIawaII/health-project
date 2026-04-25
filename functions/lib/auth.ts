@@ -15,6 +15,15 @@ export interface RefreshTokenData {
 const ACCESS_TOKEN_TTL = 15 * 60 // 15 分钟
 const REFRESH_TOKEN_TTL = 30 * 24 * 60 * 60 // 30 天
 
+function parseJsonSafely<T>(value: string | null): T | null {
+  if (!value) return null
+  try {
+    return JSON.parse(value) as T
+  } catch {
+    return null
+  }
+}
+
 /**
  * 从请求头验证 Bearer Access Token
  */
@@ -26,8 +35,7 @@ export async function verifyToken(context: {
   if (!authHeader || !authHeader.startsWith('Bearer ')) return null
   const token = authHeader.slice(7)
   const tokenDataStr = await context.env.AUTH_TOKENS.get(`token:${token}`)
-  if (!tokenDataStr) return null
-  return JSON.parse(tokenDataStr) as TokenData
+  return parseJsonSafely<TokenData>(tokenDataStr)
 }
 
 /**
@@ -74,8 +82,7 @@ export async function verifyRefreshToken(
   refreshToken: string
 ): Promise<RefreshTokenData | null> {
   const tokenDataStr = await authTokens.get(`refresh_token:${refreshToken}`)
-  if (!tokenDataStr) return null
-  return JSON.parse(tokenDataStr) as RefreshTokenData
+  return parseJsonSafely<RefreshTokenData>(tokenDataStr)
 }
 
 /**

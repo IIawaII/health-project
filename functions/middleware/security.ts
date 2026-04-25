@@ -14,9 +14,11 @@ export function buildCsp(scriptNonce?: string): string {
     "default-src 'self'",
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "font-src 'self' https://fonts.gstatic.com",
-    "img-src 'self' data: blob:",
-    "connect-src 'self'",
+    "img-src 'self' data: blob: https://challenges.cloudflare.com",
+    "connect-src 'self' https://challenges.cloudflare.com",
     "frame-src https://challenges.cloudflare.com",
+    "child-src 'self' blob: https://challenges.cloudflare.com",
+    "worker-src 'self' blob:",
     "frame-ancestors 'none'",
     "media-src 'self'",
     "object-src 'none'",
@@ -24,7 +26,9 @@ export function buildCsp(scriptNonce?: string): string {
     "form-action 'self'",
   ]
   if (scriptNonce) {
-    directives.push(`script-src 'self' 'nonce-${scriptNonce}' https://challenges.cloudflare.com`)
+    directives.push(
+      `script-src 'self' 'nonce-${scriptNonce}' 'strict-dynamic' https://challenges.cloudflare.com`
+    )
   } else {
     directives.push("script-src 'self' https://challenges.cloudflare.com")
   }
