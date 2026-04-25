@@ -94,7 +94,7 @@ export function TurnstileWidget({
             size,
           });
           setLoadError(false);
-        } catch (err) {
+        } catch {
           // render 调用失败（如 sitekey 无效），通知父组件并停止重试
           if (!cancelled) {
             setLoadError(true);
@@ -181,15 +181,4 @@ export function TurnstileWidget({
   );
 }
 
-export function resetTurnstile() {
-  if (typeof window !== 'undefined' && window.turnstile) {
-    // 重置所有 Turnstile 组件
-    const widgets = document.querySelectorAll('[data-turnstile-widget]');
-    widgets.forEach((widget) => {
-      const widgetId = widget.getAttribute('data-turnstile-widget-id');
-      if (widgetId) {
-        window.turnstile?.reset(widgetId);
-      }
-    });
-  }
-}
+
