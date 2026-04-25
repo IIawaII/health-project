@@ -17,12 +17,18 @@ id = "KV_USERS_ID"
 binding = "AUTH_TOKENS"
 id = "KV_AUTH_TOKENS_ID"
 
+[[kv_namespaces]]
+binding = "VERIFICATION_CODES"
+id = "KV_VERIFICATION_CODES_ID"
+
 # KV Namespaces:
 #   - USERS
 #   - AUTH_TOKENS
+#   - VERIFICATION_CODES
 #
 # Variables:
 #   - TURNSTILE_SITE_KEY
 #
 # Secrets:
 #   - TURNSTILE_SECRET_KEY
+#   - RESEND_API_KEY

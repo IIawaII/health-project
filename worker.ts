@@ -7,6 +7,7 @@ import * as authVerify from './functions/api/auth/verify'
 import * as authChangePassword from './functions/api/auth/change_password'
 import * as authUpdateProfile from './functions/api/auth/update_profile'
 import * as authCheck from './functions/api/auth/check'
+import * as authSendVerificationCode from './functions/api/auth/send_verification_code'
 import * as chatHandler from './functions/api/chat'
 import * as analyzeHandler from './functions/api/analyze'
 import * as planHandler from './functions/api/plan'
@@ -15,8 +16,10 @@ import * as quizHandler from './functions/api/quiz'
 interface Env {
   USERS: KVNamespace
   AUTH_TOKENS: KVNamespace
+  VERIFICATION_CODES: KVNamespace
   TURNSTILE_SITE_KEY?: string
   TURNSTILE_SECRET_KEY: string
+  RESEND_API_KEY?: string
   AI_API_KEY: string
   AI_BASE_URL: string
   AI_MODEL: string
@@ -125,6 +128,7 @@ const routes: Array<{
   { method: 'POST', path: '/api/auth/change_password', handler: authChangePassword.onRequestPost as Handler },
   { method: 'POST', path: '/api/auth/update_profile', handler: authUpdateProfile.onRequestPost as Handler },
   { method: 'POST', path: '/api/auth/check', handler: authCheck.onRequestPost as Handler },
+  { method: 'POST', path: '/api/auth/send_verification_code', handler: authSendVerificationCode.onRequestPost as Handler },
   { method: 'POST', path: '/api/chat', handler: chatHandler.onRequestPost as Handler },
   { method: 'POST', path: '/api/analyze', handler: analyzeHandler.onRequestPost as Handler },
   { method: 'POST', path: '/api/plan', handler: planHandler.onRequestPost as Handler },

@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useAuth } from '@/context/AuthContext'
 import type { User } from '@/types/auth'
 import { AVATAR_LIST, getUserAvatarUrl } from '@/lib/avatar'
-import { FiX, FiMail, FiLock, FiUser, FiCheck, FiAlertCircle } from 'react-icons/fi'
+import { FiX, FiMail, FiLock, FiUser, FiCheck, FiAlertCircle, FiMessageSquare } from 'react-icons/fi'
 
 interface SettingsModalProps {
   isOpen: boolean
@@ -17,14 +17,66 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
+  const [verificationCode, setVerificationCode] = useState('')
+  const [countdown, setCountdown] = useState(0)
+  const [isSendingCode, setIsSendingCode] = useState(false)
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+
+  const isEmailChanged = email !== (user?.email || '')
 
   if (!isOpen) return null
 
   const showMessage = (type: 'success' | 'error', text: string) => {
     setMessage({ type, text })
     setTimeout(() => setMessage(null), 3000)
+  }
+
+  const handleSendCode = async () => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailRegex.test(email)) {
+      showMessage('error', '请输入有效的邮箱地址')
+      return
+    }
+
+    setIsSendingCode(true)
+    setMessage(null)
+
+    try {
+      const response = await fetch('/api/auth/send_verification_code', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          email,
+          type: 'update_email',
+          currentEmail: user?.email,
+        }),
+      })
+      const data = await response.json() as { success: boolean; message?: string; error?: string }
+
+      if (data.success) {
+        setCountdown(60)
+        const timer = setInterval(() => {
+          setCountdown((prev) => {
+            if (prev <= 1) {
+              clearInterval(timer)
+              return 0
+            }
+            return prev - 1
+          })
+        }, 1000)
+        showMessage('success', '验证码已发送')
+      } else {
+        showMessage('error', data.error || '发送失败')
+      }
+    } catch {
+      showMessage('error', '网络错误，请稍后重试')
+    } finally {
+      setIsSendingCode(false)
+    }
   }
 
   const handleUpdateProfile = async () => {
@@ -37,11 +89,20 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
       return
     }
 
+    // 如果修改了邮箱，需要验证码
+    if (isEmailChanged && !verificationCode) {
+      showMessage('error', '请输入验证码')
+      return
+    }
+
     setLoading(true)
     try {
-      const body: { email: string; avatar?: string } = { email }
+      const body: { email: string; avatar?: string; verificationCode?: string } = { email }
       if (selectedAvatar) {
         body.avatar = selectedAvatar
+      }
+      if (isEmailChanged) {
+        body.verificationCode = verificationCode
       }
 
       const response = await fetch('/api/auth/update_profile', {
@@ -56,6 +117,7 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
       if (response.ok) {
         updateUser(data.user as User)
         showMessage('success', '个人信息更新成功')
+        setVerificationCode('')
       } else {
         showMessage('error', data.error || '更新失败')
       }
@@ -198,11 +260,48 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                 <input
                   type="email"
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  onChange={(e) => {
+                    setEmail(e.target.value)
+                    setVerificationCode('')
+                  }}
                   className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all"
                   placeholder="请输入邮箱"
                 />
               </div>
+
+              {/* Verification Code (only when email changed) */}
+              {isEmailChanged && (
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-2">
+                    <FiMessageSquare className="w-4 h-4 inline mr-1" />
+                    验证码
+                  </label>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={verificationCode}
+                      onChange={(e) => setVerificationCode(e.target.value)}
+                      placeholder="请输入6位验证码"
+                      maxLength={6}
+                      className="flex-1 px-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleSendCode}
+                      disabled={countdown > 0 || isSendingCode || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)}
+                      className="px-4 py-2.5 bg-primary/10 text-primary border border-primary/20 rounded-xl text-sm font-medium hover:bg-primary/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+                    >
+                      {isSendingCode ? (
+                        <span className="inline-block w-4 h-4 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
+                      ) : countdown > 0 ? (
+                        `${countdown}s后重发`
+                      ) : (
+                        '获取验证码'
+                      )}
+                    </button>
+                  </div>
+                </div>
+              )}
 
               <button
                 onClick={handleUpdateProfile}

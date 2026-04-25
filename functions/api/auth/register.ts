@@ -7,6 +7,7 @@ interface RegisterRequest {
   email: string;
   password: string;
   turnstileToken: string;
+  verificationCode: string;
 }
 
 interface User {
@@ -38,13 +39,13 @@ async function verifyTurnstile(token: string, secretKey: string, ip?: string): P
   return data.success;
 }
 
-export const onRequestPost = async (context: EventContext<{ TURNSTILE_SECRET_KEY: string; USERS: KVNamespace; AUTH_TOKENS: KVNamespace }, string, Record<string, unknown>>) => {
+export const onRequestPost = async (context: EventContext<{ TURNSTILE_SECRET_KEY: string; USERS: KVNamespace; AUTH_TOKENS: KVNamespace; VERIFICATION_CODES: KVNamespace }, string, Record<string, unknown>>) => {
   try {
     const body = await context.request.json<RegisterRequest>();
-    const { username, email, password, turnstileToken } = body;
+    const { username, email, password, turnstileToken, verificationCode } = body;
 
     // 验证输入
-    if (!username || !email || !password || !turnstileToken) {
+    if (!username || !email || !password || !turnstileToken || !verificationCode) {
       return errorResponse('请填写所有必填字段', 400);
     }
 
@@ -74,6 +75,19 @@ export const onRequestPost = async (context: EventContext<{ TURNSTILE_SECRET_KEY
     if (!isValid) {
       return errorResponse('人机验证失败，请重试', 400);
     }
+
+    // 验证邮箱验证码
+    const codeKey = `verify_code:register:${email}`;
+    const storedCodeData = await context.env.VERIFICATION_CODES.get(codeKey);
+    if (!storedCodeData) {
+      return errorResponse('验证码已过期，请重新获取', 400);
+    }
+    const storedCode = JSON.parse(storedCodeData) as { code: string };
+    if (storedCode.code !== verificationCode) {
+      return errorResponse('验证码错误', 400);
+    }
+    // 验证成功后删除验证码
+    await context.env.VERIFICATION_CODES.delete(codeKey);
 
     // 检查用户名是否已存在
     const existingUserByUsername = await context.env.USERS.get(`username:${username}`);

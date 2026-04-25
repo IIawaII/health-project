@@ -13,7 +13,8 @@ import {
   ShieldCheck,
   CheckCircle2,
   XCircle,
-  ArrowRight
+  ArrowRight,
+  MessageSquare
 } from 'lucide-react';
 
 export default function Register() {
@@ -25,6 +26,7 @@ export default function Register() {
     email: '',
     password: '',
     confirmPassword: '',
+    verificationCode: '',
   });
   const [turnstileToken, setTurnstileToken] = useState<string>('');
   const [turnstileKey, setTurnstileKey] = useState(0);
@@ -36,6 +38,8 @@ export default function Register() {
   const [usernameError, setUsernameError] = useState('');
   const [usernameStatus, setUsernameStatus] = useState<'idle' | 'checking' | 'available' | 'taken'>('idle');
   const [emailStatus, setEmailStatus] = useState<'idle' | 'checking' | 'available' | 'taken'>('idle');
+  const [countdown, setCountdown] = useState(0);
+  const [isSendingCode, setIsSendingCode] = useState(false);
 
   // 密码强度验证
   const passwordChecks = {
@@ -146,8 +150,63 @@ export default function Register() {
     setError('验证已过期，请重新验证');
   }, []);
 
+  const handleSendCode = async () => {
+    if (!validateEmail(formData.email)) {
+      setEmailError('请输入有效的邮箱地址');
+      return;
+    }
+    if (emailStatus === 'taken') {
+      setError('该邮箱已被注册');
+      return;
+    }
+    if (!turnstileToken) {
+      setError('请先完成人机验证');
+      return;
+    }
+
+    setIsSendingCode(true);
+    setError('');
+
+    try {
+      const res = await fetch('/api/auth/send_verification_code', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: formData.email,
+          type: 'register',
+          turnstileToken,
+        }),
+      });
+      const data = await res.json() as { success: boolean; message?: string; error?: string };
+
+      if (data.success) {
+        setCountdown(60);
+        const timer = setInterval(() => {
+          setCountdown((prev) => {
+            if (prev <= 1) {
+              clearInterval(timer);
+              return 0;
+            }
+            return prev - 1;
+          });
+        }, 1000);
+      } else {
+        setError(data.error || '发送失败');
+        // 如果 Turnstile 验证失败，重置 token
+        if (data.error?.includes('人机验证')) {
+          setTurnstileToken('');
+          setTurnstileKey((prev) => prev + 1);
+        }
+      }
+    } catch {
+      setError('网络错误，请稍后重试');
+    } finally {
+      setIsSendingCode(false);
+    }
+  };
+
   const validateForm = (): boolean => {
-    if (!formData.username || !formData.email || !formData.password || !formData.confirmPassword) {
+    if (!formData.username || !formData.email || !formData.password || !formData.confirmPassword || !formData.verificationCode) {
       setError('请填写所有必填字段');
       return false;
     }
@@ -169,6 +228,11 @@ export default function Register() {
 
     if (formData.password !== formData.confirmPassword) {
       setError('两次输入的密码不一致');
+      return false;
+    }
+
+    if (!/^\d{6}$/.test(formData.verificationCode)) {
+      setError('请输入6位数字验证码');
       return false;
     }
 
@@ -194,6 +258,7 @@ export default function Register() {
       password: formData.password,
       confirmPassword: formData.confirmPassword,
       turnstileToken,
+      verificationCode: formData.verificationCode,
     });
 
     setIsLoading(false);
@@ -299,6 +364,42 @@ export default function Register() {
                 {emailError && (
                   <p className="mt-1 text-xs text-red-500">{emailError}</p>
                 )}
+              </div>
+
+              {/* Verification Code */}
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1.5">
+                  验证码
+                </label>
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <MessageSquare className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                    <input
+                      type="text"
+                      name="verificationCode"
+                      value={formData.verificationCode}
+                      onChange={handleChange}
+                      placeholder="请输入6位验证码"
+                      maxLength={6}
+                      className="w-full pl-10 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none"
+                      disabled={isLoading}
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleSendCode}
+                    disabled={countdown > 0 || isSendingCode || !turnstileToken || emailStatus === 'taken' || !validateEmail(formData.email)}
+                    className="px-4 py-2.5 bg-blue-50 text-blue-600 border border-blue-200 rounded-lg text-sm font-medium hover:bg-blue-100 focus:ring-2 focus:ring-blue-500/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+                  >
+                    {isSendingCode ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : countdown > 0 ? (
+                      `${countdown}s后重发`
+                    ) : (
+                      '获取验证码'
+                    )}
+                  </button>
+                </div>
               </div>
 
               {/* Password */}

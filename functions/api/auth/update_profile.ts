@@ -4,6 +4,7 @@ import { jsonResponse, errorResponse } from '../../lib/response';
 interface Env {
   USERS: KVNamespace;
   AUTH_TOKENS: KVNamespace;
+  VERIFICATION_CODES: KVNamespace;
 }
 
 export const onRequestPost = async (context: EventContext<Env, string, Record<string, unknown>>) => {
@@ -34,10 +35,26 @@ export const onRequestPost = async (context: EventContext<Env, string, Record<st
       user = { id: userId, username: tokenData.username, email: tokenData.email };
     }
 
-    const body = await context.request.json<{ email?: string; avatar?: string }>();
+    const body = await context.request.json<{ email?: string; avatar?: string; verificationCode?: string }>();
 
     // 更新邮箱
     if (body.email && body.email !== user.email) {
+      // 验证验证码
+      if (!body.verificationCode) {
+        return errorResponse('请输入验证码', 400);
+      }
+      const codeKey = `verify_code:update_email:${body.email}`;
+      const storedCodeData = await context.env.VERIFICATION_CODES.get(codeKey);
+      if (!storedCodeData) {
+        return errorResponse('验证码已过期，请重新获取', 400);
+      }
+      const storedCode = JSON.parse(storedCodeData) as { code: string };
+      if (storedCode.code !== body.verificationCode) {
+        return errorResponse('验证码错误', 400);
+      }
+      // 验证成功后删除验证码
+      await context.env.VERIFICATION_CODES.delete(codeKey);
+
       // 检查新邮箱是否已被使用（仅对非测试账号）
       if (userDataStr) {
         const existingUser = await context.env.USERS.get(`email:${body.email}`);

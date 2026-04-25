@@ -24,6 +24,7 @@ export interface RegisterCredentials {
   password: string;
   confirmPassword: string;
   turnstileToken: string;
+  verificationCode: string;
 }
 
 export interface AuthResponse {

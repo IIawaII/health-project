@@ -23,6 +23,7 @@ jobs:
         run: |
           sed -i "s/KV_USERS_ID/${{ secrets.KV_USERS_ID }}/g" wrangler.toml
           sed -i "s/KV_AUTH_TOKENS_ID/${{ secrets.KV_AUTH_TOKENS_ID }}/g" wrangler.toml
+          sed -i "s/VERIFICATION_CODES/${{ secrets.VERIFICATION_CODES }}/g" wrangler.toml
           sed -i "s/ACCOUNT_ID/${{ secrets.CLOUDFLARE_ACCOUNT_ID }}/g" wrangler.toml
 
       - name: Deploy to Cloudflare
@@ -42,6 +43,12 @@ jobs:
             -H "Authorization: Bearer $TOKEN" \
             -H "Content-Type: application/json" \
             -d "{\"name\":\"TURNSTILE_SECRET_KEY\",\"text\":\"${{ secrets.TURNSTILE_SECRET_KEY }}\",\"type\":\"secret_text\"}" || echo "Secret sync skipped or failed"
+
+          # Sync RESEND_API_KEY
+          curl -s -X PUT "https://api.cloudflare.com/client/v4/accounts/$ACCOUNT_ID/workers/scripts/$WORKER_NAME/secrets" \
+            -H "Authorization: Bearer $TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "{\"name\":\"RESEND_API_KEY\",\"text\":\"${{ secrets.RESEND_API_KEY }}\",\"type\":\"secret_text\"}" || echo "Secret sync skipped or failed"
 
           # Sync TURNSTILE_SITE_KEY as variable
           curl -s -X PUT "https://api.cloudflare.com/client/v4/accounts/$ACCOUNT_ID/workers/scripts/$WORKER_NAME/secrets" \
