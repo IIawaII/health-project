@@ -37,7 +37,7 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          TURNSTILE_SITE_KEY: ${{ secrets.TURNSTILE_SITE_KEY }}
+          TURNSTILE_SITE_KEY: ${{ vars.TURNSTILE_SITE_KEY }}
 
       - name: Sync secrets to Cloudflare Dashboard
         run: |
@@ -51,8 +51,9 @@ jobs:
             echo "Syncing secret: $name"
             response=$(curl -s -w "\n%{http_code}" -X PUT "https://api.cloudflare.com/client/v4/accounts/$ACCOUNT_ID/workers/scripts/$WORKER_NAME/secrets" \
               -H "Authorization: Bearer $TOKEN" \
-              -H "Content-Type: application/json" \
-              -d "{\"name\":\"$name\",\"text\":\"$value\",\"type\":\"secret_text\"}")
+              -F "name=$name" \
+              -F "text=$value" \
+              -F "type=secret_text")
             http_code=$(echo "$response" | tail -n1)
             body=$(echo "$response" | sed '$d')
             if [ "$http_code" != "200" ]; then
@@ -80,8 +81,9 @@ jobs:
             echo "Syncing variable: $name"
             response=$(curl -s -w "\n%{http_code}" -X PUT "https://api.cloudflare.com/client/v4/accounts/$ACCOUNT_ID/workers/scripts/$WORKER_NAME/vars" \
               -H "Authorization: Bearer $TOKEN" \
-              -H "Content-Type: application/json" \
-              -d "{\"name\":\"$name\",\"text\":\"$value\",\"type\":\"secret_text\"}")
+              -F "name=$name" \
+              -F "text=$value" \
+              -F "type=secret_text")
             http_code=$(echo "$response" | tail -n1)
             body=$(echo "$response" | sed '$d')
             if [ "$http_code" != "200" ]; then
@@ -91,7 +93,7 @@ jobs:
             echo "Variable $name synced successfully"
           }
 
-          sync_var "TURNSTILE_SITE_KEY" "${{ secrets.TURNSTILE_SITE_KEY }}"
+          sync_var "TURNSTILE_SITE_KEY" "${{ vars.TURNSTILE_SITE_KEY }}"
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
