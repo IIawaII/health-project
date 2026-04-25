@@ -25,19 +25,25 @@ jobs:
       - name: Type check
         run: npx tsc -b
 
-      - name: Inject KV and D1 IDs
+      - name: Inject KV, D1 IDs and Variables
         run: |
           sed -i "s/KV_USERS_ID/${{ secrets.KV_USERS_ID }}/g" wrangler.toml
           sed -i "s/KV_AUTH_TOKENS_ID/${{ secrets.KV_AUTH_TOKENS_ID }}/g" wrangler.toml
           sed -i "s/KV_VERIFICATION_CODES_ID/${{ secrets.KV_VERIFICATION_CODES_ID }}/g" wrangler.toml
           sed -i "s/D1_DATABASE_ID/${{ secrets.D1_DATABASE_ID }}/g" wrangler.toml
 
+          if ! grep -q '^\[vars\]' wrangler.toml; then
+            echo -e '\n[vars]' >> wrangler.toml
+          fi
+
+          sed -i '/^TURNSTILE_SITE_KEY\s*=/d' wrangler.toml
+          sed -i '/^\[vars\]/a TURNSTILE_SITE_KEY = "${{ vars.TURNSTILE_SITE_KEY }}"' wrangler.toml
+
       - name: Deploy to Cloudflare
         run: npx wrangler deploy
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          TURNSTILE_SITE_KEY: ${{ vars.TURNSTILE_SITE_KEY }}
 
       - name: Sync secrets via Wrangler
         run: |
@@ -47,9 +53,4 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
 
-      - name: Sync variables via Wrangler
-        run: |
-          npx wrangler vars put TURNSTILE_SITE_KEY --value "${{ vars.TURNSTILE_SITE_KEY }}" --name health-project
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
