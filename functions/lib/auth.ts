@@ -18,7 +18,9 @@ const REFRESH_TOKEN_TTL = 30 * 24 * 60 * 60 // 30 天
 function parseJsonSafely<T>(value: string | null): T | null {
   if (!value) return null
   try {
-    return JSON.parse(value) as T
+    const parsed = JSON.parse(value)
+    if (parsed === null || typeof parsed !== 'object') return null
+    return parsed as T
   } catch {
     return null
   }
@@ -143,21 +145,25 @@ export async function revokeAllUserTokens(
 ): Promise<void> {
   // 撤销 Access Tokens
   const accessList = await authTokens.list({ prefix: `user_tokens:${userId}:` })
+  const accessDeletions: Promise<void>[] = []
   for (const key of accessList.keys) {
     const token = key.name.split(':').pop()
     if (token) {
-      await authTokens.delete(`token:${token}`)
+      accessDeletions.push(authTokens.delete(`token:${token}`))
     }
-    await authTokens.delete(key.name)
+    accessDeletions.push(authTokens.delete(key.name))
   }
 
   // 撤销 Refresh Tokens
   const refreshList = await authTokens.list({ prefix: `user_refresh_tokens:${userId}:` })
+  const refreshDeletions: Promise<void>[] = []
   for (const key of refreshList.keys) {
     const token = key.name.split(':').pop()
     if (token) {
-      await authTokens.delete(`refresh_token:${token}`)
+      refreshDeletions.push(authTokens.delete(`refresh_token:${token}`))
     }
-    await authTokens.delete(key.name)
+    refreshDeletions.push(authTokens.delete(key.name))
   }
+
+  await Promise.all([...accessDeletions, ...refreshDeletions])
 }

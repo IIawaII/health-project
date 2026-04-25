@@ -1,28 +1,9 @@
-export interface ChatMessage {
-  role: 'user' | 'assistant'
-  content: string
-}
-
-export interface QuizQuestion {
-  question: string
-  options: string[]
-  correctAnswer: number
-  explanation: string
-}
-
-export interface QuizResult {
-  score: number
-  correctCount: number
-  total: number
-  comment: string
-  results: Array<{
-    question: string
-    userAnswer: number
-    correctAnswer: number
-    isCorrect: boolean
-    explanation: string
-  }>
-}
+export type {
+  ChatMessage,
+  QuizQuestion,
+  QuizResult,
+  ApiConfig,
+} from '../../shared/types'
 
 export interface HealthPlanFormData {
   name: string
@@ -37,10 +18,4 @@ export interface HealthPlanFormData {
   targetDate: string
   medicalConditions: string
   allergies: string
-}
-
-export interface ApiConfig {
-  baseUrl: string
-  apiKey: string
-  model: string
 }

@@ -9,6 +9,11 @@ export function getCorsOrigin(request: Request, env: Env): string {
   const origin = request.headers.get('Origin') || ''
 
   if (!allowed) {
+    // 生产环境未配置 ALLOWED_ORIGINS 时，拒绝所有跨域来源
+    const isDev = env.ASSETS === undefined || request.url.includes('localhost') || request.url.includes('127.0.0.1')
+    if (!isDev) {
+      return ''
+    }
     const localOrigins = ['http://localhost:5173', 'http://localhost:8787', 'http://127.0.0.1:5173']
     return localOrigins.includes(origin) ? origin : ''
   }
@@ -38,7 +43,7 @@ export function createCorsPreflightResponse(corsOrigin: string): Response {
     headers: {
       'Access-Control-Allow-Origin': corsOrigin,
       'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-AI-Base-URL, X-AI-API-Key, X-AI-Model',
       'Access-Control-Max-Age': '86400',
       'X-Content-Type-Options': 'nosniff',
       'Referrer-Policy': 'strict-origin-when-cross-origin',

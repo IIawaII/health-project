@@ -28,17 +28,12 @@ jobs:
         run: npx tsc -b
 
       - name: Inject KV, D1 IDs and Variables
-        run: |
-          sed -i "s/KV_AUTH_TOKENS_ID/${{ secrets.KV_AUTH_TOKENS_ID }}/g" wrangler.toml
-          sed -i "s/KV_VERIFICATION_CODES_ID/${{ secrets.KV_VERIFICATION_CODES_ID }}/g" wrangler.toml
-          sed -i "s/D1_DATABASE_ID/${{ secrets.D1_DATABASE_ID }}/g" wrangler.toml
-
-          if ! grep -q '^\[vars\]' wrangler.toml; then
-            echo -e '\n[vars]' >> wrangler.toml
-          fi
-
-          sed -i '/^TURNSTILE_SITE_KEY\s*=/d' wrangler.toml
-          sed -i '/^\[vars\]/a TURNSTILE_SITE_KEY = "${{ vars.TURNSTILE_SITE_KEY }}"' wrangler.toml
+        run: node scripts/inject-wrangler-config.cjs
+        env:
+          KV_AUTH_TOKENS_ID: ${{ secrets.KV_AUTH_TOKENS_ID }}
+          KV_VERIFICATION_CODES_ID: ${{ secrets.KV_VERIFICATION_CODES_ID }}
+          D1_DATABASE_ID: ${{ secrets.D1_DATABASE_ID }}
+          TURNSTILE_SITE_KEY: ${{ vars.TURNSTILE_SITE_KEY }}
 
       - name: Apply D1 Migrations
         run: npx wrangler d1 migrations apply health-project-db --remote

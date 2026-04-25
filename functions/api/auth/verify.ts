@@ -1,5 +1,5 @@
 import { jsonResponse, errorResponse } from '../../lib/response';
-import { findUserById } from '../../lib/db';
+import { findUserByIdPublic } from '../../lib/db';
 import { verifyToken } from '../../lib/auth';
 import type { Env } from '../../lib/env';
 
@@ -15,7 +15,7 @@ export const onRequestGet = async (context: EventContext<Env, string, Record<str
 
     try {
       // 从 D1 获取完整用户信息（包括头像和最新邮箱）
-      const dbUser = await findUserById(context.env.DB, tokenData.userId);
+      const dbUser = await findUserByIdPublic(context.env.DB, tokenData.userId);
       if (dbUser) {
         avatar = dbUser.avatar ?? undefined;
         email = dbUser.email;

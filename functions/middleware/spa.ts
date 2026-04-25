@@ -8,7 +8,12 @@ import type { Env } from '../lib/env'
 
 function addNonceToScripts(html: string, nonce?: string): string {
   if (!nonce) return html
-  return html.replace(/<script(?![^>]*\bnonce=)/g, `<script nonce="${nonce}"`)
+  // 仅给没有 nonce 且不是 JSON/LD 数据类型的 script 标签注入 nonce
+  // 避免误匹配 <script type="application/json"> 等非 JS 脚本块
+  return html.replace(
+    /<script\b(?![^>]*\bnonce=)(?![^>]*\btype=["']application\/(json|ld\+json)["'])/g,
+    `<script nonce="${nonce}"`
+  )
 }
 
 export function injectClientConfig(html: string, env: Env, nonce?: string): string {

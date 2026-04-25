@@ -5,6 +5,8 @@
 
 import { parseLLMResult } from './response'
 
+import type { Env } from './env'
+
 export interface CallLLMOptions {
   baseUrl: string
   apiKey: string
@@ -13,6 +15,26 @@ export interface CallLLMOptions {
   stream?: boolean
   temperature?: number
   max_tokens?: number
+}
+
+/**
+ * 从请求头和环境变量中解析 LLM 配置
+ * 优先使用用户自定义配置（X-AI-* 头），否则回退到服务端环境变量
+ */
+export function resolveLLMConfig(
+  request: Request,
+  env: Env
+): { baseUrl: string; apiKey: string; model: string } | null {
+  const userBaseUrl = request.headers.get('X-AI-Base-URL')
+  const userApiKey = request.headers.get('X-AI-API-Key')
+  const userModel = request.headers.get('X-AI-Model')
+
+  const baseUrl = userBaseUrl || env.AI_BASE_URL
+  const apiKey = userApiKey || env.AI_API_KEY
+  const model = userModel || env.AI_MODEL
+
+  if (!baseUrl || !apiKey || !model) return null
+  return { baseUrl, apiKey, model }
 }
 
 function isIPv4Address(value: string): boolean {
@@ -85,7 +107,7 @@ async function queryDnsRecords(hostname: string, type: 'A' | 'AAAA'): Promise<st
  * - 禁止 localhost、回环地址、私有 IP 段
  * - 通过 Cloudflare DoH 解析域名并验证解析结果
  */
-async function isValidLLMUrl(url: string): Promise<boolean> {
+async function validateLLMUrl(url: string): Promise<boolean> {
   try {
     const parsed = new URL(url)
     if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return false
@@ -130,6 +152,20 @@ async function isValidLLMUrl(url: string): Promise<boolean> {
   } catch {
     return false
   }
+}
+
+const urlValidationCache = new Map<string, { valid: boolean; expiry: number }>()
+const URL_VALIDATION_CACHE_TTL = 5 * 60 * 1000 // 5 分钟
+
+async function isValidLLMUrl(url: string): Promise<boolean> {
+  const cached = urlValidationCache.get(url)
+  if (cached && cached.expiry > Date.now()) {
+    return cached.valid
+  }
+
+  const result = await validateLLMUrl(url)
+  urlValidationCache.set(url, { valid: result, expiry: Date.now() + URL_VALIDATION_CACHE_TTL })
+  return result
 }
 
 /**

@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, useRef, type ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback, useRef, type ReactNode } from 'react';
 import type { User, AuthState, LoginCredentials, RegisterCredentials, AuthResponse } from '@/types/auth';
 import { getApiError, getStringField, getObjectField } from '@/lib/utils';
 import { fetchWithTimeout } from '@/lib/fetch';
@@ -10,6 +10,7 @@ interface AuthContextType extends AuthState {
   logout: () => Promise<void>;
   checkAuth: () => Promise<void>;
   updateUser: (user: User) => void;
+  refreshToken: () => Promise<string | null>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -340,7 +341,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ ...state, login, register, logout, checkAuth, updateUser }}>
+    <AuthContext.Provider value={{ ...state, login, register, logout, checkAuth, updateUser, refreshToken: doRefreshToken }}>
       {children}
     </AuthContext.Provider>
   );

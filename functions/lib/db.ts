@@ -13,6 +13,9 @@ export interface DbUser {
   updated_at: string
 }
 
+/** 不含敏感字段的用户信息 */
+export type DbUserPublic = Omit<DbUser, 'password_hash'>
+
 export type VerificationCodePurpose = 'register' | 'update_email'
 
 export interface VerificationCodeRecord {
@@ -42,11 +45,20 @@ export async function findUserByEmail(db: D1Database, email: string): Promise<Db
 }
 
 /**
- * 通过 ID 查找用户
+ * 通过 ID 查找用户（含密码哈希，仅用于认证相关场景）
  */
 export async function findUserById(db: D1Database, id: string): Promise<DbUser | null> {
   const stmt = db.prepare('SELECT id, username, email, password_hash, avatar, created_at, updated_at FROM users WHERE id = ?')
   const result = await stmt.bind(id).first<DbUser>()
+  return result ?? null
+}
+
+/**
+ * 通过 ID 查找用户（不含密码哈希，用于普通查询场景）
+ */
+export async function findUserByIdPublic(db: D1Database, id: string): Promise<DbUserPublic | null> {
+  const stmt = db.prepare('SELECT id, username, email, avatar, created_at, updated_at FROM users WHERE id = ?')
+  const result = await stmt.bind(id).first<DbUserPublic>()
   return result ?? null
 }
 
@@ -81,6 +93,9 @@ export async function updateUserPassword(db: D1Database, id: string, passwordHas
 
 /**
  * 更新用户信息（用户名、邮箱、头像）
+ *
+ * 安全说明：本函数使用动态 SQL 拼接，但 fields 数组完全由代码内部硬编码分支控制，
+ * 不存在用户输入直接进入 SQL 语句的风险。values 通过参数化绑定传入。
  */
 export async function updateUser(
   db: D1Database,
@@ -170,6 +185,62 @@ export async function deleteVerificationCode(
 }
 
 /**
+ * 检查验证码发送冷却时间（从 D1 查询，替代 KV 实现）
+ */
+export async function checkVerificationCooldown(
+  db: D1Database,
+  purpose: VerificationCodePurpose,
+  email: string,
+  cooldownSeconds: number
+): Promise<{ allowed: boolean; remainingSeconds: number }> {
+  const stmt = db.prepare('SELECT sent_at FROM verification_code_cooldowns WHERE purpose = ? AND email = ?')
+  const record = await stmt.bind(purpose, email).first<{ sent_at: string }>()
+
+  if (!record) {
+    return { allowed: true, remainingSeconds: 0 }
+  }
+
+  const sentAt = new Date(record.sent_at).getTime()
+  const now = Date.now()
+  const elapsedSeconds = Math.floor((now - sentAt) / 1000)
+
+  if (elapsedSeconds >= cooldownSeconds) {
+    return { allowed: true, remainingSeconds: 0 }
+  }
+
+  return { allowed: false, remainingSeconds: cooldownSeconds - elapsedSeconds }
+}
+
+/**
+ * 设置验证码发送冷却时间（写入 D1，替代 KV 实现）
+ */
+export async function setVerificationCooldown(
+  db: D1Database,
+  purpose: VerificationCodePurpose,
+  email: string
+): Promise<void> {
+  const stmt = db.prepare(
+    `INSERT INTO verification_code_cooldowns (purpose, email, sent_at)
+     VALUES (?, ?, ?)
+     ON CONFLICT(purpose, email) DO UPDATE SET
+       sent_at = excluded.sent_at`
+  )
+  await stmt.bind(purpose, email, new Date().toISOString()).run()
+}
+
+/**
+ * 删除验证码发送冷却记录
+ */
+export async function deleteVerificationCooldown(
+  db: D1Database,
+  purpose: VerificationCodePurpose,
+  email: string
+): Promise<void> {
+  const stmt = db.prepare('DELETE FROM verification_code_cooldowns WHERE purpose = ? AND email = ?')
+  await stmt.bind(purpose, email).run()
+}
+
+/**
  * 原子消费验证码，成功时直接删除，避免并发重复使用
  */
 export async function consumeVerificationCode(
@@ -178,7 +249,7 @@ export async function consumeVerificationCode(
   email: string,
   code: string,
   now: string = new Date().toISOString()
-): Promise<'consumed' | 'expired' | 'invalid'> {
+): Promise<'consumed' | 'not_found' | 'expired' | 'invalid'> {
   const deleteStmt = db.prepare(
     'DELETE FROM verification_codes WHERE purpose = ? AND email = ? AND code = ? AND expires_at > ?'
   )
@@ -192,7 +263,7 @@ export async function consumeVerificationCode(
   const record = await lookupStmt.bind(purpose, email).first<{ code: string; expires_at: string }>()
 
   if (!record) {
-    return 'expired'
+    return 'not_found'
   }
 
   if (record.expires_at <= now) {
@@ -200,5 +271,6 @@ export async function consumeVerificationCode(
     return 'expired'
   }
 
-  return record.code === code ? 'expired' : 'invalid'
+  // 执行到此处说明记录存在且未过期，但 DELETE 未成功，唯一原因是 code 不匹配
+  return 'invalid'
 }

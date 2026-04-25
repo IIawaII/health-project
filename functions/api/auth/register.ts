@@ -10,9 +10,9 @@ import type { Env } from '../../lib/env';
 const registerSchema = z.object({
   username: z.string().regex(/^[a-zA-Z0-9_]{3,10}$/, '用户名只能包含字母、数字和下划线，长度3-10位'),
   email: z.string().email('请输入有效的邮箱地址'),
-  password: z.string().min(8, '密码长度至少8位').regex(/(?=.*[A-Za-z])(?=.*\d)/, '密码必须同时包含字母和数字'),
+  password: z.string().min(8, '密码长度至少8位').max(128, '密码长度不能超过128位').regex(/(?=.*[A-Za-z])(?=.*\d)/, '密码必须同时包含字母和数字'),
   turnstileToken: z.string().min(1, '请完成人机验证'),
-  verificationCode: z.string().min(1, '请输入验证码'),
+  verificationCode: z.string().regex(/^\d{6}$/, '请输入6位数字验证码'),
 });
 
 function isUniqueConstraintError(error: unknown): boolean {
@@ -63,8 +63,8 @@ export const onRequestPost = async (context: EventContext<Env, string, Record<st
       verificationCode,
       new Date().toISOString()
     );
-    if (verificationStatus === 'expired') {
-      return errorResponse('验证码已过期，请重新获取', 400);
+    if (verificationStatus === 'expired' || verificationStatus === 'not_found') {
+      return errorResponse('验证码已过期或不存在，请重新获取', 400);
     }
     if (verificationStatus === 'invalid') {
       return errorResponse('验证码错误', 400);
@@ -74,7 +74,6 @@ export const onRequestPost = async (context: EventContext<Env, string, Record<st
     const userId = crypto.randomUUID();
     const passwordHash = await hashPassword(password);
     const now = new Date().toISOString();
-
     try {
       await createUser(context.env.DB, {
         id: userId,
@@ -96,21 +95,31 @@ export const onRequestPost = async (context: EventContext<Env, string, Record<st
     const accessToken = generateToken();
     const refreshToken = generateToken();
 
-    // 保存 Access Token（15分钟有效期）
-    await saveToken(context.env.AUTH_TOKENS, accessToken, {
-      userId,
-      username,
-      email,
-      createdAt: now,
-    });
+    try {
+      // 保存 Access Token（15分钟有效期）
+      await saveToken(context.env.AUTH_TOKENS, accessToken, {
+        userId,
+        username,
+        email,
+        createdAt: now,
+      });
 
-    // 保存 Refresh Token（30天有效期）
-    await saveRefreshToken(context.env.AUTH_TOKENS, refreshToken, {
-      userId,
-      username,
-      email,
-      createdAt: now,
-    });
+      // 保存 Refresh Token（30天有效期）
+      await saveRefreshToken(context.env.AUTH_TOKENS, refreshToken, {
+        userId,
+        username,
+        email,
+        createdAt: now,
+      });
+    } catch (tokenError) {
+      console.error('Registration token write failed:', tokenError);
+      // KV 写入失败时，用户已创建但无令牌。告知用户尝试直接登录，
+      // 由登录流程重新颁发令牌（D1 与 KV 无分布式事务）。
+      return errorResponse(
+        '注册成功但自动登录失败，请使用刚注册的账号直接登录',
+        503
+      );
+    }
 
     return jsonResponse({
       success: true,

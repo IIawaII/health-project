@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { TurnstileWidget } from '@/components/TurnstileWidget';
@@ -41,6 +41,7 @@ export default function Register() {
   const [countdown, setCountdown] = useState(0);
   const [isSendingCode, setIsSendingCode] = useState(false);
   const checkAbortRef = useRef<AbortController | null>(null);
+  const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // 密码强度验证
   const passwordChecks = {
@@ -200,10 +201,12 @@ export default function Register() {
 
       if (data.success) {
         setCountdown(60);
-        const timer = setInterval(() => {
+        if (countdownRef.current) clearInterval(countdownRef.current);
+        countdownRef.current = setInterval(() => {
           setCountdown((prev) => {
             if (prev <= 1) {
-              clearInterval(timer);
+              clearInterval(countdownRef.current!);
+              countdownRef.current = null;
               return 0;
             }
             return prev - 1;
@@ -224,6 +227,15 @@ export default function Register() {
     }
   };
 
+  // 组件卸载时清理倒计时 interval，防止内存泄漏
+  useEffect(() => {
+    return () => {
+      if (countdownRef.current) {
+        clearInterval(countdownRef.current);
+      }
+    };
+  }, []);
+
   const validateForm = (): boolean => {
     if (!formData.username || !formData.email || !formData.password || !formData.confirmPassword || !formData.verificationCode) {
       setError('请填写所有必填字段');
@@ -240,8 +252,8 @@ export default function Register() {
       return false;
     }
 
-    if (formData.password.length < 8) {
-      setError('密码长度至少8位');
+    if (formData.password.length < 8 || formData.password.length > 128) {
+      setError('密码长度应在8-128位之间');
       return false;
     }
 
@@ -327,10 +339,12 @@ export default function Register() {
                   <input
                     type="text"
                     name="username"
+                    autoComplete="username"
                     value={formData.username}
                     onChange={handleChange}
                     onBlur={handleUsernameBlur}
                     placeholder="3-10位字母、数字或下划线"
+                    maxLength={10}
                     className={`w-full pl-10 pr-9 py-2.5 bg-slate-50 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none ${
                       usernameError ? 'border-red-300 focus:ring-red-200' : 'border-slate-200'
                     }`}
@@ -361,10 +375,12 @@ export default function Register() {
                   <input
                     type="email"
                     name="email"
+                    autoComplete="email"
                     value={formData.email}
                     onChange={handleChange}
                     onBlur={handleEmailBlur}
                     placeholder="your@email.com"
+                    maxLength={254}
                     className={`w-full pl-10 pr-9 py-2.5 bg-slate-50 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none ${
                       emailError ? 'border-red-300 focus:ring-red-200' : 'border-slate-200'
                     }`}
@@ -396,6 +412,8 @@ export default function Register() {
                     <input
                       type="text"
                       name="verificationCode"
+                      autoComplete="one-time-code"
+                      inputMode="numeric"
                       value={formData.verificationCode}
                       onChange={handleChange}
                       placeholder="请输入6位验证码"
@@ -431,9 +449,11 @@ export default function Register() {
                   <input
                     type={showPassword ? 'text' : 'password'}
                     name="password"
+                    autoComplete="new-password"
                     value={formData.password}
                     onChange={handleChange}
                     placeholder="至少8位字符"
+                    maxLength={128}
                     className="w-full pl-10 pr-12 py-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none"
                     disabled={isLoading}
                   />
@@ -497,9 +517,11 @@ export default function Register() {
                   <input
                     type={showConfirmPassword ? 'text' : 'password'}
                     name="confirmPassword"
+                    autoComplete="new-password"
                     value={formData.confirmPassword}
                     onChange={handleChange}
                     placeholder="再次输入密码"
+                    maxLength={128}
                     className="w-full pl-10 pr-12 py-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none"
                     disabled={isLoading}
                   />

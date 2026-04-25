@@ -7,8 +7,11 @@ import { findUserById, updateUserPassword } from '../../lib/db';
 import type { Env } from '../../lib/env';
 
 const changePasswordSchema = z.object({
-  currentPassword: z.string().min(1, '请填写当前密码'),
-  newPassword: z.string().min(8, '新密码至少8位').regex(/(?=.*[A-Za-z])(?=.*\d)/, '新密码必须同时包含字母和数字'),
+  currentPassword: z.string().min(1, '请填写当前密码').max(128, '密码长度不能超过128位'),
+  newPassword: z.string().min(8, '新密码至少8位').max(128, '密码长度不能超过128位').regex(/(?=.*[A-Za-z])(?=.*\d)/, '新密码必须同时包含字母和数字'),
+}).refine((data) => data.currentPassword !== data.newPassword, {
+  message: '新密码不能与当前密码相同',
+  path: ['newPassword'],
 });
 
 export const onRequestPost = async (context: EventContext<Env, string, Record<string, unknown>>) => {
@@ -62,6 +65,7 @@ export const onRequestPost = async (context: EventContext<Env, string, Record<st
     return jsonResponse({
       success: true,
       message: '密码修改成功，请使用新密码重新登录',
+      requireReLogin: true,
     }, 200);
   } catch (error) {
     console.error('Change password error:', error);

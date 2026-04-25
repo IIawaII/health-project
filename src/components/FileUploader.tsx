@@ -34,6 +34,7 @@ export default function FileUploader({ onFileSelect, onClear, selectedFile }: Fi
           const text = await readTextFile(file)
           fileData = text
         } else {
+          // application/pdf 也转为 base64，由后端按多模态方式交给模型解析
           fileData = await fileToBase64(file)
         }
 
@@ -105,6 +106,9 @@ export default function FileUploader({ onFileSelect, onClear, selectedFile }: Fi
           </p>
           <p className="text-xs text-foreground-subtle">
             支持 PNG、JPG、PDF、TXT 格式，最大 {MAX_SIZE_MB}MB
+          </p>
+          <p className="text-xs text-amber-600 mt-1">
+            提示：图片和 PDF 将转为 base64 编码，内存占用约增加 33%
           </p>
         </div>
       ) : (

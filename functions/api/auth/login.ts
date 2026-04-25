@@ -8,8 +8,8 @@ import { findUserByUsername, findUserByEmail } from '../../lib/db';
 import type { Env } from '../../lib/env';
 
 const loginSchema = z.object({
-  usernameOrEmail: z.string().min(1, '请填写用户名或邮箱'),
-  password: z.string().min(1, '请填写密码'),
+  usernameOrEmail: z.string().min(1, '请填写用户名或邮箱').max(254, '输入过长'),
+  password: z.string().min(1, '请填写密码').max(128, '密码长度不能超过128位'),
   turnstileToken: z.string().min(1, '请完成人机验证'),
 });
 

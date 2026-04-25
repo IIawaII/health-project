@@ -27,7 +27,10 @@ type PagesHandler = (context: EventContext<Env, string, Record<string, unknown>>
 type AppEnv = { Bindings: Env }
 
 function asHonoHandler(handler: PagesHandler) {
-  return (context: Context<AppEnv>) => handler(createContext(context.req.raw, context.env))
+  return (context: Context<AppEnv>) => {
+    const execCtx = (context as unknown as { executionCtx?: ExecutionContext }).executionCtx
+    return handler(createContext(context.req.raw, context.env, execCtx))
+  }
 }
 
 const api = new Hono<AppEnv>()
@@ -49,19 +52,16 @@ api.get('/api/health', (context) => {
   return context.json({ status: 'ok', timestamp: new Date().toISOString() })
 })
 
+const STATIC_EXTENSIONS = new Set([
+  '.js', '.css', '.svg', '.png', '.jpg', '.jpeg', '.webp',
+  '.ico', '.json', '.txt', '.xml', '.webmanifest', '.woff', '.woff2',
+])
+
 function isStaticAsset(pathname: string): boolean {
-  return (
-    pathname.startsWith('/assets/') ||
-    pathname.endsWith('.js') ||
-    pathname.endsWith('.css') ||
-    pathname.endsWith('.svg') ||
-    pathname.endsWith('.png') ||
-    pathname.endsWith('.jpg') ||
-    pathname.endsWith('.jpeg') ||
-    pathname.endsWith('.webp') ||
-    pathname.endsWith('.woff') ||
-    pathname.endsWith('.woff2')
-  )
+  if (pathname.startsWith('/assets/')) return true
+  const lastDot = pathname.lastIndexOf('.')
+  if (lastDot === -1) return false
+  return STATIC_EXTENSIONS.has(pathname.slice(lastDot))
 }
 
 export default {

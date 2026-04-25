@@ -4,15 +4,18 @@
  * CORS 头由 worker.ts 全局统一注入，handler 中无需重复设置
  */
 
-export function jsonResponse(data: unknown, status = 200): Response {
+export function jsonResponse<T>(data: T, status = 200): Response {
   return new Response(JSON.stringify(data), {
     status,
     headers: { 'Content-Type': 'application/json' },
   })
 }
 
-export function errorResponse(error: string, status = 500): Response {
-  return jsonResponse({ error }, status)
+export function errorResponse(error: string, status = 500, extraHeaders?: Record<string, string>): Response {
+  return new Response(JSON.stringify({ error }), {
+    status,
+    headers: { 'Content-Type': 'application/json', ...extraHeaders },
+  })
 }
 
 /**

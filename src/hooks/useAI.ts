@@ -41,6 +41,8 @@ export function useAI<T = unknown>(options: UseAIOptions<T>): UseAIReturn<T> {
   const execute = useCallback(
     async (payload: Record<string, unknown>) => {
       if (!token) {
+        setLoading(false)
+        setResult(null)
         setError('请先登录')
         return
       }
@@ -58,12 +60,18 @@ export function useAI<T = unknown>(options: UseAIOptions<T>): UseAIReturn<T> {
           body: JSON.stringify(payload),
         })
 
-        const text = await response.text()
+        // 优先尝试直接解析 JSON，避免先转 text 再 parse 的内存开销
         let data: unknown
-        try {
-          data = JSON.parse(text)
-        } catch {
-          data = { error: text || `请求失败: ${response.status}` }
+        const contentType = response.headers.get('content-type') || ''
+        if (contentType.includes('application/json')) {
+          data = await response.json()
+        } else {
+          const text = await response.text()
+          try {
+            data = JSON.parse(text)
+          } catch {
+            data = { error: text || `请求失败: ${response.status}` }
+          }
         }
 
         if (!response.ok || getApiError(data)) {
@@ -93,7 +101,7 @@ export function useAIStream(options: {
   onError?: (error: string) => void
   onDone?: () => void
 }) {
-  const { token } = useAuth()
+  const { token, refreshToken } = useAuth()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const abortControllerRef = useRef<AbortController | null>(null)
@@ -115,6 +123,7 @@ export function useAIStream(options: {
   const execute = useCallback(
     async (payload: Record<string, unknown>) => {
       if (!token) {
+        setLoading(false)
         setError('请先登录')
         return
       }
@@ -129,13 +138,27 @@ export function useAIStream(options: {
 
       const currentOptions = optionsRef.current
 
-      try {
-        const response = await fetch(currentOptions.endpoint, {
+      async function doFetch(authToken: string) {
+        return fetch(currentOptions.endpoint, {
           method: 'POST',
-          headers: buildHeaders(token),
+          headers: buildHeaders(authToken),
           body: JSON.stringify({ ...payload, stream: true }),
           signal: controller.signal,
         })
+      }
+
+      try {
+        let response = await doFetch(token)
+
+        // 401 时尝试自动刷新 Token 并重试一次
+        if (response.status === 401) {
+          const newToken = await refreshToken()
+          if (newToken) {
+            response = await doFetch(newToken)
+          } else {
+            throw new Error('登录已过期，请重新登录')
+          }
+        }
 
         if (!response.ok) {
           const text = await response.text()
@@ -197,7 +220,7 @@ export function useAIStream(options: {
         }
       }
     },
-    [token]
+    [token, refreshToken]
   )
 
   return { loading, error, execute, abort }

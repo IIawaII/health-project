@@ -121,9 +121,11 @@ export default function Login() {
                   <input
                     type="text"
                     name="usernameOrEmail"
+                    autoComplete="username"
                     value={formData.usernameOrEmail}
                     onChange={handleChange}
                     placeholder="请输入用户名或邮箱"
+                    maxLength={254}
                     className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none"
                     disabled={isLoading}
                   />
@@ -140,9 +142,11 @@ export default function Login() {
                   <input
                     type={showPassword ? 'text' : 'password'}
                     name="password"
+                    autoComplete="current-password"
                     value={formData.password}
                     onChange={handleChange}
                     placeholder="请输入密码"
+                    maxLength={128}
                     className="w-full pl-10 pr-12 py-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none"
                     disabled={isLoading}
                   />

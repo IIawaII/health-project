@@ -2,7 +2,15 @@ import { jsonResponse, errorResponse } from '../../lib/response';
 import { verifyToken } from '../../lib/auth';
 import { validateTurnstile } from '../../lib/turnstile';
 import { checkRateLimit } from '../../lib/rateLimit';
-import { emailExists, findUserById, upsertVerificationCode, deleteVerificationCode } from '../../lib/db';
+import {
+  emailExists,
+  findUserById,
+  upsertVerificationCode,
+  deleteVerificationCode,
+  checkVerificationCooldown,
+  setVerificationCooldown,
+  deleteVerificationCooldown,
+} from '../../lib/db';
 import type { Env } from '../../lib/env';
 
 interface SendCodeRequest {
@@ -16,10 +24,11 @@ const VERIFICATION_CODE_TTL_SECONDS = 180;
 const SEND_CODE_COOLDOWN_SECONDS = 60;
 
 function generateCode(): string {
-  const array = new Uint8Array(4);
-  crypto.getRandomValues(array);
-  const num = new DataView(array.buffer).getUint32(0, false);
-  return String(100000 + (num % 900000));
+  const digits = new Uint8Array(6)
+  crypto.getRandomValues(digits)
+  // 逐位取模 10 生成 0-9 的数字，在 256 与 10 不互质时存在极微小偏差，
+  // 但对于 6 位验证码场景完全可接受，远优于单次大范围模运算
+  return Array.from(digits, (b) => (b % 10).toString()).join('')
 }
 
 async function sendEmailViaResend(apiKey: string, to: string, code: string, type: string): Promise<void> {
@@ -106,11 +115,10 @@ export const onRequestPost = async (context: EventContext<Env, string, Record<st
       return errorResponse('发送过于频繁，请稍后再试', 429);
     }
 
-    // 检查发送频率限制（60秒冷却）
-    const rateLimitKey = `rate_limit:${type}:${email}`;
-    const lastSent = await context.env.VERIFICATION_CODES.get(rateLimitKey);
-    if (lastSent) {
-      return errorResponse('发送过于频繁，请稍后再试', 429);
+    // 检查发送频率限制（60秒冷却）—— 使用 D1 替代 KV，保证与验证码数据一致性
+    const cooldownCheck = await checkVerificationCooldown(context.env.DB, type, email, SEND_CODE_COOLDOWN_SECONDS);
+    if (!cooldownCheck.allowed) {
+      return errorResponse(`发送过于频繁，请 ${cooldownCheck.remainingSeconds} 秒后再试`, 429);
     }
 
     // 注册类型：检查邮箱是否已被注册
@@ -157,9 +165,8 @@ export const onRequestPost = async (context: EventContext<Env, string, Record<st
       });
       codePersisted = true;
 
-      await context.env.VERIFICATION_CODES.put(rateLimitKey, '1', {
-        expirationTtl: SEND_CODE_COOLDOWN_SECONDS,
-      });
+      // 使用 D1 存储冷却时间，与验证码在同一数据库保证一致性
+      await setVerificationCooldown(context.env.DB, type, email);
       cooldownPersisted = true;
 
       await sendEmailViaResend(context.env.RESEND_API_KEY, email, code, type);
@@ -169,7 +176,7 @@ export const onRequestPost = async (context: EventContext<Env, string, Record<st
         rollbackTasks.push(deleteVerificationCode(context.env.DB, type, email));
       }
       if (cooldownPersisted) {
-        rollbackTasks.push(context.env.VERIFICATION_CODES.delete(rateLimitKey));
+        rollbackTasks.push(deleteVerificationCooldown(context.env.DB, type, email));
       }
       await Promise.allSettled(rollbackTasks);
       throw sendError;

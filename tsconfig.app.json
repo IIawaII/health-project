@@ -18,8 +18,8 @@
     /* Linting */
     "strict": true,
     "verbatimModuleSyntax": false,
-    "noUnusedLocals": false,
-    "noUnusedParameters": false,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
     "noUncheckedSideEffectImports": true,
     "baseUrl": ".",
@@ -28,6 +28,6 @@
     },
     "types": ["@cloudflare/workers-types/2023-07-01"]
   },
-  "include": ["src", "worker.ts", "functions"],
+  "include": ["src", "worker.ts", "functions", "shared"],
   "exclude": ["node_modules", "dist"]
 }

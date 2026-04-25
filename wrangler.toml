@@ -23,11 +23,11 @@ binding = "VERIFICATION_CODES"
 id = "KV_VERIFICATION_CODES_ID"
 
 # D1 Database:
-#   - DB (users table)
+#   - DB (users table, verification_codes table, verification_code_cooldowns table)
 #
 # KV Namespaces:
-#   - AUTH_TOKENS
-#   - VERIFICATION_CODES
+#   - AUTH_TOKENS (登录令牌、刷新令牌)
+#   - VERIFICATION_CODES (IP 级别验证码发送限流)
 #
 # Variables:
 #   - TURNSTILE_SITE_KEY

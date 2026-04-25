@@ -1,36 +1,36 @@
-import { verifyToken } from '../lib/auth';
-import { jsonResponse, errorResponse, safeErrorResponse } from '../lib/response';
+import { z } from 'zod';
+import { jsonResponse, errorResponse } from '../lib/response';
 import { checkRateLimit } from '../lib/rateLimit';
-import { callLLMText } from '../lib/llm';
+import { callLLMText, resolveLLMConfig } from '../lib/llm';
 import { SYSTEM_PROMPTS, USER_PROMPTS } from '../lib/prompts';
-import type { Env } from '../lib/env';
+import { createAIHandler } from '../lib/handler';
 
-export const onRequestPost = async (context: EventContext<Env, string, Record<string, unknown>>) => {
-  const { request } = context;
+const questionSchema = z.object({
+  question: z.string().min(1, '题目内容不能为空').max(500, '题目内容过长'),
+  options: z.array(z.string().min(1)).min(2, '选项至少2个').max(6, '选项最多6个'),
+  correctAnswer: z.number().int().min(0).optional(),
+  explanation: z.string().max(2000, '解析内容过长').optional(),
+});
 
-  try {
-    const body = await request.json<{
-      mode: 'generate' | 'grade';
-      category?: string;
-      difficulty?: string;
-      questions?: Array<{
-        question: string;
-        options: string[];
-        correctAnswer?: number;
-        explanation?: string;
-      }>;
-      userAnswers?: number[];
-    }>();
+const quizSchema = z.object({
+  mode: z.enum(['generate', 'grade'], { message: 'mode 必须是 generate 或 grade' }),
+  category: z.string().max(50).optional(),
+  difficulty: z.string().max(20).optional(),
+  questions: z.array(questionSchema).max(100, '题目数量不能超过100').optional(),
+  userAnswers: z.array(z.number().int().min(0)).max(100).optional(),
+}).refine((data) => {
+  if (data.mode === 'grade') {
+    return data.questions !== undefined && data.userAnswers !== undefined;
+  }
+  return true;
+}, { message: '评分模式必须提供 questions 和 userAnswers', path: ['mode'] });
 
-    const { mode, category, difficulty, questions, userAnswers } = body;
+export const onRequestPost = createAIHandler({
+  schema: quizSchema,
+  async handler(data, context, tokenData) {
+    const { mode, category, difficulty, questions, userAnswers } = data;
 
     if (mode === 'generate') {
-      const tokenData = await verifyToken(context);
-      if (!tokenData) {
-        return errorResponse('未授权', 401);
-      }
-
-      // 速率限制：每个用户每小时最多 20 次题目生成
       const rateLimit = await checkRateLimit({
         kv: context.env.AUTH_TOKENS,
         key: `ai:${tokenData.userId}:quiz`,
@@ -38,20 +38,14 @@ export const onRequestPost = async (context: EventContext<Env, string, Record<st
         windowSeconds: 3600,
       });
       if (!rateLimit.allowed) {
-        return errorResponse('题目生成请求过于频繁，请稍后再试', 429);
+        return errorResponse('题目生成请求过于频繁，请稍后再试', 429, { 'Retry-After': String(rateLimit.resetAt - Math.floor(Date.now() / 1000)) });
       }
 
-      const userBaseUrl = request.headers.get('X-AI-Base-URL');
-      const userApiKey = request.headers.get('X-AI-API-Key');
-      const userModel = request.headers.get('X-AI-Model');
-
-      const baseUrl = userBaseUrl || context.env.AI_BASE_URL;
-      const apiKey = userApiKey || context.env.AI_API_KEY;
-      const model = userModel || context.env.AI_MODEL;
-
-      if (!baseUrl || !apiKey || !model) {
+      const llmConfig = resolveLLMConfig(context.request, context.env);
+      if (!llmConfig) {
         return errorResponse('未配置 AI API，请在设置中填写或联系管理员', 503);
       }
+      const { baseUrl, apiKey, model } = llmConfig;
 
       const content = await callLLMText({
         baseUrl,
@@ -69,7 +63,8 @@ export const onRequestPost = async (context: EventContext<Env, string, Record<st
       try {
         parsed = JSON.parse(content);
       } catch {
-        const jsonMatch = content.match(/\{[\s\S]*\}/);
+        // 使用更严格的 JSON 提取：匹配最外层花括号对，避免截断或跨对象匹配
+        const jsonMatch = content.match(/\{(?:[^{}]|\{(?:[^{}]|\{[^{}]*\})*\})*\}/);
         if (jsonMatch) {
           parsed = JSON.parse(jsonMatch[0]);
         } else {
@@ -81,12 +76,6 @@ export const onRequestPost = async (context: EventContext<Env, string, Record<st
     }
 
     if (mode === 'grade' && questions && userAnswers) {
-      // 评分模式也要求登录，保持行为一致性
-      const tokenData = await verifyToken(context);
-      if (!tokenData) {
-        return errorResponse('未授权', 401);
-      }
-
       if (questions.length === 0) {
         return errorResponse('题目数据为空，无法评分', 400);
       }
@@ -94,7 +83,6 @@ export const onRequestPost = async (context: EventContext<Env, string, Record<st
         return errorResponse('答题数量与题目数量不匹配', 400);
       }
 
-      // 校验题目数据完整性
       for (let i = 0; i < questions.length; i++) {
         if (typeof questions[i].correctAnswer !== 'number') {
           return errorResponse(`第 ${i + 1} 题缺少正确答案数据`, 400);
@@ -132,7 +120,5 @@ export const onRequestPost = async (context: EventContext<Env, string, Record<st
     }
 
     return errorResponse('无效的请求参数', 400);
-  } catch (err) {
-    return safeErrorResponse(err);
-  }
-};
+  },
+});

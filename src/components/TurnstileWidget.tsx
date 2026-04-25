@@ -67,6 +67,11 @@ function loadTurnstileScript(): Promise<void> {
     document.head.appendChild(script);
   });
 
+  scriptLoadPromise.catch(() => {
+    // 加载失败时重置 promise，允许后续组件重试
+    scriptLoadPromise = null;
+  });
+
   return scriptLoadPromise;
 }
 
