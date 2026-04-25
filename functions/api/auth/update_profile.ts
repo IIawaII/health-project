@@ -35,7 +35,29 @@ export const onRequestPost = async (context: EventContext<Env, string, Record<st
       user = { id: userId, username: tokenData.username, email: tokenData.email };
     }
 
-    const body = await context.request.json<{ email?: string; avatar?: string; verificationCode?: string }>();
+    const body = await context.request.json<{ username?: string; email?: string; avatar?: string; verificationCode?: string }>();
+
+    // 更新用户名
+    if (body.username && body.username !== user.username) {
+      // 验证用户名格式
+      if (!/^[a-zA-Z0-9_]{3,10}$/.test(body.username)) {
+        return errorResponse('用户名只能包含字母、数字和下划线，长度3-10位', 400);
+      }
+      // 检查新用户名是否已被使用
+      if (userDataStr) {
+        const existingUser = await context.env.USERS.get(`username:${body.username}`);
+        if (existingUser && existingUser !== userId) {
+          return errorResponse('该用户名已被使用', 400);
+        }
+        await context.env.USERS.put(`username:${body.username}`, userId);
+        await context.env.USERS.put(`user:${userId}`, JSON.stringify({ ...user, username: body.username }));
+        await context.env.USERS.delete(`username:${user.username}`);
+        user.username = body.username;
+      } else {
+        user.username = body.username;
+        await context.env.USERS.put(`user:${userId}`, JSON.stringify(user));
+      }
+    }
 
     // 更新邮箱
     if (body.email && body.email !== user.email) {

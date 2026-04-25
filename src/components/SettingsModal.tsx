@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useAuth } from '@/context/AuthContext'
 import type { User } from '@/types/auth'
 import { AVATAR_LIST, getUserAvatarUrl } from '@/lib/avatar'
@@ -12,6 +12,7 @@ interface SettingsModalProps {
 export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const { user, updateUser, token } = useAuth()
   const [activeTab, setActiveTab] = useState<'profile' | 'password'>('profile')
+  const [username, setUsername] = useState(user?.username || '')
   const [email, setEmail] = useState(user?.email || '')
   const [selectedAvatar, setSelectedAvatar] = useState(user?.avatar)
   const [currentPassword, setCurrentPassword] = useState('')
@@ -22,6 +23,26 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const [isSendingCode, setIsSendingCode] = useState(false)
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+
+  // 当模态框打开时，从最新的 user 同步数据到表单
+  useEffect(() => {
+    if (isOpen) {
+      setUsername(user?.username || '')
+      setEmail(user?.email || '')
+      setSelectedAvatar(user?.avatar)
+    }
+  }, [isOpen, user?.username, user?.email, user?.avatar])
+
+  // 当模态框关闭时清空敏感状态
+  useEffect(() => {
+    if (!isOpen) {
+      setCurrentPassword('')
+      setNewPassword('')
+      setConfirmPassword('')
+      setVerificationCode('')
+      setMessage(null)
+    }
+  }, [isOpen])
 
   const isEmailChanged = email !== (user?.email || '')
 
@@ -82,6 +103,12 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const handleUpdateProfile = async () => {
     if (!token) return
 
+    // 用户名格式验证
+    if (username && !/^[a-zA-Z0-9_]{3,10}$/.test(username)) {
+      showMessage('error', '用户名只能包含字母、数字和下划线，长度3-10位')
+      return
+    }
+
     // 邮箱格式验证
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
     if (email && !emailRegex.test(email)) {
@@ -97,7 +124,10 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
 
     setLoading(true)
     try {
-      const body: { email: string; avatar?: string; verificationCode?: string } = { email }
+      const body: { username?: string; email: string; avatar?: string; verificationCode?: string } = { email }
+      if (username !== (user?.username || '')) {
+        body.username = username
+      }
       if (selectedAvatar) {
         body.avatar = selectedAvatar
       }
@@ -130,12 +160,16 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
 
   const handleChangePassword = async () => {
     if (!token) return
-    if (newPassword !== confirmPassword) {
-      showMessage('error', '两次输入的新密码不一致')
+    if (!currentPassword || !newPassword || !confirmPassword) {
+      showMessage('error', '请填写所有密码字段')
       return
     }
     if (newPassword.length < 6) {
       showMessage('error', '新密码至少6位')
+      return
+    }
+    if (newPassword !== confirmPassword) {
+      showMessage('error', '两次输入的新密码不一致')
       return
     }
     setLoading(true)
@@ -249,6 +283,21 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                     </button>
                   ))}
                 </div>
+              </div>
+
+              {/* Username */}
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-2">
+                  <FiUser className="w-4 h-4 inline mr-1" />
+                  用户名
+                </label>
+                <input
+                  type="text"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all"
+                  placeholder="3-10位字母、数字或下划线"
+                />
               </div>
 
               {/* Email */}
