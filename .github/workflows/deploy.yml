@@ -25,11 +25,12 @@ jobs:
       - name: Type check
         run: npx tsc -b
 
-      - name: Inject KV IDs
+      - name: Inject KV and D1 IDs
         run: |
           sed -i "s/KV_USERS_ID/${{ secrets.KV_USERS_ID }}/g" wrangler.toml
           sed -i "s/KV_AUTH_TOKENS_ID/${{ secrets.KV_AUTH_TOKENS_ID }}/g" wrangler.toml
           sed -i "s/KV_VERIFICATION_CODES_ID/${{ secrets.KV_VERIFICATION_CODES_ID }}/g" wrangler.toml
+          sed -i "s/D1_DATABASE_ID/${{ secrets.D1_DATABASE_ID }}/g" wrangler.toml
 
       - name: Deploy to Cloudflare
         run: npx wrangler deploy
