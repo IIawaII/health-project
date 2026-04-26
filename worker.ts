@@ -108,7 +108,7 @@ export default {
         const res = new Response(injectClientConfig(FALLBACK_HTML, env, nonce), {
           headers: { 'Content-Type': 'text/html', 'Cache-Control': 'no-cache, no-store, must-revalidate' },
         })
-        return addSecurityHeaders(res, true, nonce)
+        return addSecurityHeaders(res, true)
       }
 
       // Static assets fallback

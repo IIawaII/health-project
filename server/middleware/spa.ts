@@ -87,5 +87,5 @@ export async function renderSpaHtml(response: Response, env: Env, nonce: string)
     statusText: response.statusText,
     headers,
   })
-  return addSecurityHeaders(res, true, nonce)
+  return addSecurityHeaders(res, true)
 }

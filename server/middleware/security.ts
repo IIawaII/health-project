@@ -9,10 +9,9 @@ export function generateNonce(): string {
   return Array.from(array, (b) => b.toString(16).padStart(2, '0')).join('')
 }
 
-export function buildCsp(scriptNonce?: string): string {
+export function buildCsp(): string {
   const directives = [
     "default-src 'self'",
-    // 'unsafe-inline' 为 Turnstile 的 srcdoc iframe 内联样式所必需
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "font-src 'self' https://fonts.gstatic.com",
     "img-src 'self' data: blob: https://challenges.cloudflare.com",
@@ -25,18 +24,12 @@ export function buildCsp(scriptNonce?: string): string {
     "object-src 'none'",
     "base-uri 'self'",
     "form-action 'self'",
+    "script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com",
   ]
-  if (scriptNonce) {
-    directives.push(
-      `script-src 'self' 'nonce-${scriptNonce}' 'unsafe-inline' 'strict-dynamic' https://challenges.cloudflare.com`
-    )
-  } else {
-    directives.push("script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com")
-  }
   return directives.join('; ')
 }
 
-export function addSecurityHeaders(response: Response, isHtml = false, scriptNonce?: string): Response {
+export function addSecurityHeaders(response: Response, isHtml = false): Response {
   const headers = new Headers(response.headers)
   headers.set('X-Content-Type-Options', 'nosniff')
   headers.set('X-Frame-Options', 'DENY')
@@ -49,7 +42,7 @@ export function addSecurityHeaders(response: Response, isHtml = false, scriptNon
     'accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()'
   )
   if (isHtml) {
-    headers.set('Content-Security-Policy', buildCsp(scriptNonce))
+    headers.set('Content-Security-Policy', buildCsp())
     headers.set('Strict-Transport-Security', 'max-age=63072000; includeSubDomains; preload')
   }
   return new Response(response.body, {
