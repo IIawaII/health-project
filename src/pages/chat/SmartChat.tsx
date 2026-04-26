@@ -71,8 +71,21 @@ export default function SmartChat() {
     },
   ], [t])
 
-  // 当前实际使用的技能列表：用户自定义优先，否则用默认
-  const skills = userSkills && userSkills.length > 0 ? userSkills : defaultSkills
+  // 当前实际使用的技能列表：默认技能的 name/description 始终跟随当前语言翻译，
+  // 仅 systemPrompt 允许用户自定义并持久化到 localStorage
+  const skills = useMemo(() => {
+    if (!userSkills || userSkills.length === 0) return defaultSkills
+    return defaultSkills.map((defaultSkill) => {
+      const userSkill = userSkills.find((s) => s.id === defaultSkill.id)
+      if (userSkill) {
+        return {
+          ...defaultSkill,
+          systemPrompt: userSkill.systemPrompt,
+        }
+      }
+      return defaultSkill
+    })
+  }, [userSkills, defaultSkills])
 
   const [activeSkillId, setActiveSkillId] = useState<string | null>(null)
   const hasCreatedRef = useRef(false)

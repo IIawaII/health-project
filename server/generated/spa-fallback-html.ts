@@ -12,8 +12,8 @@ export const FALLBACK_HTML = `<!doctype html>
     <link rel="preconnect" href="https://challenges.cloudflare.com" />
     <link rel="dns-prefetch" href="https://challenges.cloudflare.com" />
     <script id="turnstile-script" src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit" async></script>
-    <script type="module" crossorigin src="/assets/index-BJHpZAaC.js"></script>
-    <link rel="stylesheet" crossorigin href="/assets/index-Ccj4Aiu-.css">
+    <script type="module" crossorigin src="/assets/index-Djav4nri.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-B2XQSYU2.css">
   <script>window.__ENV__={"TURNSTILE_SITE_KEY":"1x00000000000000000000AA"}</script></head>
   <body>
     <div id="root"></div>

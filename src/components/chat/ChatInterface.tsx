@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 import {
-  FiSend, FiLoader, FiAlertCircle, FiSmile, FiHelpCircle, FiTrash2, FiX,
+  FiSend, FiLoader, FiAlertCircle, FiHelpCircle, FiTrash2, FiX,
   FiMessageSquare, FiRotateCcw, FiInfo, FiPlus, FiChevronDown, FiZap,
   FiEdit2, FiCheck
 } from 'react-icons/fi'
@@ -375,8 +375,8 @@ export default function ChatInterface({
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {messages.length === 0 && (
           <div className="h-full flex flex-col items-center justify-center text-center px-8">
-            <div className="w-16 h-16 rounded-2xl bg-primary-50 dark:bg-primary-900/20 flex items-center justify-center mb-4">
-              <FiSmile className="w-8 h-8 text-primary" />
+            <div className="w-16 h-16 rounded-2xl bg-primary-50 dark:bg-primary-900/20 flex items-center justify-center mb-4 overflow-hidden">
+              <img src="/Doctor.svg" alt="AI" className="w-full h-full" />
             </div>
             <h3 className="text-base font-semibold text-foreground dark:text-foreground-dark mb-2">{t('chat.welcomeTitle')}</h3>
             <p className="text-sm text-foreground-muted dark:text-foreground-dark-muted max-w-sm">
