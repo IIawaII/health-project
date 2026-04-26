@@ -3,14 +3,19 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
+  "engines": {
+    "node": ">=20.0.0"
+  },
   "scripts": {
     "dev": "wrangler dev",
-    "build": "vite build && node scripts/generate-spa-fallback.cjs",
+    "build": "vite build --config configs/vite.config.ts && node scripts/generate-spa-fallback.cjs",
     "build:check": "tsc -b",
     "deploy": "wrangler deploy",
-    "lint": "eslint .",
-    "test": "vitest run",
-    "test:watch": "vitest"
+    "lint": "eslint . -c configs/eslint.config.js",
+    "test": "vitest run --config configs/vitest.config.ts && playwright test --config configs/playwright.config.cjs",
+    "test:unit": "vitest run --config configs/vitest.config.ts",
+    "test:e2e": "playwright test --config configs/playwright.config.cjs",
+    "test:watch": "vitest --config configs/vitest.config.ts"
   },
   "dependencies": {
     "class-variance-authority": "^0.7.1",
@@ -34,6 +39,7 @@
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20250410.0",
     "@eslint/js": "^9.13.0",
+    "@playwright/test": "^1.59.1",
     "@types/node": "^22.15.0",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",

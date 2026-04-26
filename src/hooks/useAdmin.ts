@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { fetchWithTimeout } from '@/lib/fetch';
+import { fetchWithTimeout } from '@/api/client';
 
 const API_BASE_URL = '';
 

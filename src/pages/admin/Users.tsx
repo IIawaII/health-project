@@ -12,7 +12,7 @@ import {
   FiX,
 } from 'react-icons/fi'
 import { useAdminUsers } from '@/hooks/useAdmin'
-import { getAvatarDisplayUrl } from '@/lib/avatar'
+import { getAvatarDisplayUrl } from '@/utils/avatar'
 
 const roleBadge = (role: string, t: (k: string) => string) => {
   if (role === 'admin') {

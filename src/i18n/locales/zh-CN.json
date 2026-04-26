@@ -35,10 +35,12 @@
       }
     },
     "highlights": {
-      "ai": "AI 智能分析",
-      "privacy": "隐私安全",
-      "professional": "专业可靠"
+      "ai": { "title": "AI 智能分析", "desc": "基于先进大模型技术，深度解读健康数据" },
+      "privacy": { "title": "隐私安全", "desc": "API Key 本地存储，数据不上传云端" },
+      "professional": { "title": "专业可靠", "desc": "科学健康知识体系，结果有据可依" }
     },
+    "heroTitle1": "您的私人",
+    "heroTitle2": "健康 AI 顾问",
     "safety": {
       "title": "安全提示",
       "desc": "本工具基于人工智能技术分析健康信息，结果仅供参考，不能替代专业医生的诊断和治疗建议。如有严重健康问题，请及时就医。您的 API 密钥仅保存在本地浏览器中，我们不会收集或存储您的任何健康数据。"
@@ -347,6 +349,19 @@
       "maintenance_mode": "开启后普通用户将无法使用平台功能",
       "enable_registration": "关闭后将禁止新用户注册"
     }
+  },
+  "maintenance": {
+    "title": "系统维护中",
+    "desc": "平台正在进行维护升级，暂时无法访问。请稍后再试，感谢您的耐心。",
+    "status": "正在维护",
+    "goBack": "返回上页",
+    "adminLogin": "管理员登录"
+  },
+  "registrationClosed": {
+    "title": "注册已关闭",
+    "desc": "平台当前暂停新用户注册，如有疑问请联系管理员。",
+    "goBack": "返回上页",
+    "toLogin": "前往登录"
   },
   "chat": {
     "welcomeTitle": "智能健康顾问",

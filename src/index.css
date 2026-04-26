@@ -115,4 +115,32 @@
     color: inherit;
     padding: 0;
   }
+
+  /* 暗色模式适配 */
+  .dark .prose h1 {
+    color: #5EEAD4;
+  }
+
+  .dark .prose h2 {
+    color: #2DD4BF;
+  }
+
+  .dark .prose h3 {
+    color: #14B8A6;
+  }
+
+  .dark .prose strong {
+    color: #F1F5F9;
+  }
+
+  .dark .prose blockquote {
+    color: #94A3B8;
+    border-left-color: #14B8A6;
+  }
+
+  .dark .prose code {
+    background-color: #334155;
+    color: #5EEAD4;
+  }
+
 }

@@ -1,0 +1,11 @@
+{
+  "extends": "./tsconfig.app.json",
+  "compilerOptions": {
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.test.tsbuildinfo",
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
+    "types": ["vitest/globals"],
+    "skipLibCheck": true
+  },
+  "include": ["../src", "../worker.ts", "../worker-configuration.d.ts", "../server", "../shared", "../tests"]
+}

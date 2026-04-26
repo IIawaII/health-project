@@ -1,17 +1,17 @@
-name = "health-project"
+name = "cloud-health"
 main = "worker.ts"
-compatibility_date = "2025-01-01"
+compatibility_date = "2025-04-01"
 
 [assets]
 directory = "./dist"
 
 [build]
 command = "npm run build"
-watch_dir = ["src", "functions", "worker.ts"]
+watch_dir = ["src", "server", "worker.ts"]
 
 [[d1_databases]]
 binding = "DB"
-database_name = "health-project-db"
+database_name = "cloud-health-db"
 database_id = "D1_DATABASE_ID"
 
 [[kv_namespaces]]
@@ -23,11 +23,11 @@ binding = "VERIFICATION_CODES"
 id = "KV_VERIFICATION_CODES_ID"
 
 # D1 Database:
-#   - DB (users table, verification_codes table, verification_code_cooldowns table, usage_logs table, system_configs table, audit_logs table)
+#   - DB
 #
 # KV Namespaces:
-#   - AUTH_TOKENS (登录令牌、刷新令牌)
-#   - VERIFICATION_CODES (IP 级别验证码发送限流)
+#   - AUTH_TOKENS
+#   - VERIFICATION_CODES
 #
 # Variables:
 #   - TURNSTILE_SITE_KEY

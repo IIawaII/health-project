@@ -1,5 +1,5 @@
 import { useContext } from 'react'
-import { ResultContext } from '@/context/result'
+import { ResultContext } from '@/types/result'
 
 
 export function useResult() {

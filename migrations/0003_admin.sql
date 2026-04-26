@@ -37,5 +37,5 @@ CREATE TABLE IF NOT EXISTS audit_logs (
 CREATE INDEX IF NOT EXISTS idx_audit_logs_admin_id ON audit_logs(admin_id);
 CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at ON audit_logs(created_at);
 
--- Update existing users to have 'user' role (SQLite compatibility)
+-- Update existing users to have 'user' role
 UPDATE users SET role = 'user' WHERE role IS NULL;

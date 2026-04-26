@@ -35,10 +35,12 @@
       }
     },
     "highlights": {
-      "ai": "AI Powered",
-      "privacy": "Privacy Safe",
-      "professional": "Professional"
+      "ai": { "title": "AI Powered", "desc": "Deep health data interpretation based on advanced LLM technology" },
+      "privacy": { "title": "Privacy Safe", "desc": "API Key stored locally, data not uploaded to cloud" },
+      "professional": { "title": "Professional", "desc": "Scientific health knowledge system, evidence-based results" }
     },
+    "heroTitle1": "Your Personal ",
+    "heroTitle2": "Health AI Advisor",
     "safety": {
       "title": "Safety Notice",
       "desc": "This tool analyzes health information using AI technology. Results are for reference only and cannot replace professional medical diagnosis or treatment. Please seek medical attention promptly for serious health issues. Your API key is stored only in your local browser; we do not collect or store any of your health data."
@@ -114,7 +116,7 @@
   },
   "landing": {
     "badge": "Cloud Health",
-    "heroTitle1": "Your Personal",
+    "heroTitle1": "Your Personal ",
     "heroTitle2": "Health AI Advisor",
     "heroDesc": "Leveraging large language model technology to provide intelligent health report analysis, personalized health plans, health Q&A, and smart conversations for more scientific and efficient health management.",
     "startFree": "Get Started Free",
@@ -347,6 +349,19 @@
       "maintenance_mode": "When enabled, regular users cannot use the platform",
       "enable_registration": "When disabled, new user registration is prohibited"
     }
+  },
+  "maintenance": {
+    "title": "System Maintenance",
+    "desc": "The platform is currently under maintenance. Please check back later. Thank you for your patience.",
+    "status": "Under Maintenance",
+    "goBack": "Go Back",
+    "adminLogin": "Admin Login"
+  },
+  "registrationClosed": {
+    "title": "Registration Closed",
+    "desc": "New user registration is currently suspended. Please contact the administrator if you have any questions.",
+    "goBack": "Go Back",
+    "toLogin": "Go to Login"
   },
   "chat": {
     "welcomeTitle": "Smart Health Advisor",

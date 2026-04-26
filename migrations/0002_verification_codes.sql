@@ -12,8 +12,6 @@ CREATE TABLE IF NOT EXISTS verification_codes (
 
 CREATE INDEX IF NOT EXISTS idx_verification_codes_email ON verification_codes(email);
 CREATE INDEX IF NOT EXISTS idx_verification_codes_expires ON verification_codes(expires_at);
-
--- 发送冷却时间表：将冷却时间从 KV 迁移到 D1，保证与验证码数据的一致性
 CREATE TABLE IF NOT EXISTS verification_code_cooldowns (
   purpose TEXT NOT NULL,
   email TEXT NOT NULL,

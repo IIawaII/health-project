@@ -1,24 +1,25 @@
 import { lazy, Suspense } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
-import { AuthProvider, useAuth } from '@/context/AuthContext'
-import { ResultProvider } from '@/context/ResultContext'
-import { ThemeProvider } from '@/context/ThemeContext'
-import { ProtectedRoute } from '@/components/ProtectedRoute'
-import { AdminProtectedRoute } from '@/components/AdminProtectedRoute'
-import { ErrorBoundary } from '@/components/ErrorBoundary'
-import Layout from '@/components/Layout'
-import AdminLayout from '@/components/AdminLayout'
-import { FiActivity } from 'react-icons/fi'
+import { AuthProvider, useAuth } from '@/contexts/AuthContext'
+import { ResultProvider } from '@/contexts/ResultContext'
+import { ThemeProvider } from '@/contexts/ThemeContext'
+import { ProtectedRoute } from '@/components/auth/ProtectedRoute'
+import { AdminProtectedRoute } from '@/components/auth/AdminProtectedRoute'
+import { ErrorBoundary } from '@/components/layout/ErrorBoundary'
+import Layout from '@/components/layout/Layout'
+import AdminLayout from '@/components/layout/AdminLayout'
 import '@/i18n'
 
-const Home = lazy(() => import('@/pages/Home'))
-const LandingPage = lazy(() => import('@/pages/LandingPage'))
-const ReportAnalysis = lazy(() => import('@/pages/ReportAnalysis'))
-const PlanGenerator = lazy(() => import('@/pages/PlanGenerator'))
-const SmartChat = lazy(() => import('@/pages/SmartChat'))
-const HealthQuiz = lazy(() => import('@/pages/HealthQuiz'))
-const Login = lazy(() => import('@/pages/Login'))
-const Register = lazy(() => import('@/pages/Register'))
+const Home = lazy(() => import('@/pages/home/Home'))
+const LandingPage = lazy(() => import('@/pages/landing/LandingPage'))
+const ReportAnalysis = lazy(() => import('@/pages/report/ReportAnalysis'))
+const PlanGenerator = lazy(() => import('@/pages/plan/PlanGenerator'))
+const SmartChat = lazy(() => import('@/pages/chat/SmartChat'))
+const HealthQuiz = lazy(() => import('@/pages/quiz/HealthQuiz'))
+const Login = lazy(() => import('@/pages/auth/Login'))
+const Register = lazy(() => import('@/pages/auth/Register'))
+const MaintenancePage = lazy(() => import('@/pages/maintenance/MaintenancePage'))
+const RegistrationClosedPage = lazy(() => import('@/pages/auth/RegistrationClosedPage'))
 const AdminDashboard = lazy(() => import('@/pages/admin/Dashboard'))
 const AdminUsers = lazy(() => import('@/pages/admin/Users'))
 const AdminDataManagement = lazy(() => import('@/pages/admin/DataManagement'))
@@ -27,21 +28,13 @@ const AdminSystemConfig = lazy(() => import('@/pages/admin/SystemConfig'))
 function LoadingScreen() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-background-secondary">
-      <div className="flex flex-col items-center gap-4">
-        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary-400 to-primary-600 flex items-center justify-center animate-pulse-soft shadow-lg">
-          <FiActivity className="w-5 h-5 text-white" />
-        </div>
-        <div className="space-y-1.5 text-center">
-          <p className="text-sm font-medium text-foreground">正在进入</p>
-          <p className="text-xs text-foreground-subtle">请稍候...</p>
-        </div>
-      </div>
+      <div className="w-10 h-10 rounded-full border-4 border-primary-200 border-t-primary-600 animate-spin" />
     </div>
   )
 }
 
-// 已登录用户访问登录/注册页面的重定向组件
-function PublicRoute({ children }: { children: React.ReactNode }) {
+// 统一认证状态检查与重定向
+function AuthGuard({ fallback }: { fallback: React.ReactNode }) {
   const { isAuthenticated, isLoading, user } = useAuth()
 
   if (isLoading) {
@@ -49,31 +42,20 @@ function PublicRoute({ children }: { children: React.ReactNode }) {
   }
 
   if (isAuthenticated) {
-    if (user?.role === 'admin') {
-      return <Navigate to="/admin" replace />
-    }
-    return <Navigate to="/home" replace />
+    return <Navigate to={user?.role === 'admin' ? '/admin' : '/home'} replace />
   }
 
-  return <>{children}</>
+  return <>{fallback}</>
+}
+
+// 已登录用户访问登录/注册页面的重定向组件
+function PublicRoute({ children }: { children: React.ReactNode }) {
+  return <AuthGuard fallback={children} />
 }
 
 // 根路由：已登录用户重定向到 /home 或 /admin，未登录用户显示落地页
 function LandingRoute() {
-  const { isAuthenticated, isLoading, user } = useAuth()
-
-  if (isLoading) {
-    return <LoadingScreen />
-  }
-
-  if (isAuthenticated) {
-    if (user?.role === 'admin') {
-      return <Navigate to="/admin" replace />
-    }
-    return <Navigate to="/home" replace />
-  }
-
-  return <LandingPage />
+  return <AuthGuard fallback={<LandingPage />} />
 }
 
 function AppRoutes() {
@@ -194,6 +176,10 @@ function AppRoutes() {
           </AdminProtectedRoute>
         }
       />
+
+      {/* 状态页面 */}
+      <Route path="/maintenance" element={<MaintenancePage />} />
+      <Route path="/registration-closed" element={<RegistrationClosedPage />} />
 
       {/* 默认重定向 */}
       <Route path="*" element={<Navigate to="/" replace />} />

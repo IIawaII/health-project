@@ -56,3 +56,6 @@ coverage/
 
 # CodeBuddy
 .codebuddy/
+
+# test results
+test-results/

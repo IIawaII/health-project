@@ -2,7 +2,7 @@ const fs = require('fs');
 const path = require('path');
 
 const distIndexPath = path.join(__dirname, '..', 'dist', 'index.html');
-const outputPath = path.join(__dirname, '..', 'src', 'spa-fallback-html.ts');
+const outputPath = path.join(__dirname, '..', 'server', 'generated', 'spa-fallback-html.ts');
 
 if (!fs.existsSync(distIndexPath)) {
   console.warn('Warning: dist/index.html not found. Skipping spa-fallback-html update.');

@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
-import { useAuth } from '../context/AuthContext'
-import { getStoredApiConfig } from '../lib/aiConfig'
-import { getApiError, parseStreamChunk, resolveErrorMessage } from '../lib/utils'
+import { useAuth } from '../contexts/AuthContext'
+import { getStoredApiConfig } from '../config/ai'
+import { getApiError, parseStreamChunk, resolveErrorMessage } from '../utils'
 import { useAIBase } from './useAIBase'
 
 interface UseAIOptions<T> {

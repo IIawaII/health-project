@@ -1,12 +1,12 @@
 import { Hono } from 'hono'
-import { FALLBACK_HTML } from './src/spa-fallback-html'
-import { api } from './functions/api/routes'
-import { getSystemConfig } from './functions/lib/db'
-import { generateNonce, addSecurityHeaders } from './functions/middleware/security'
-import { getCorsOrigin, addCorsHeaders, createCorsPreflightResponse } from './functions/middleware/cors'
-import { applyCacheHeaders } from './functions/middleware/cache'
-import { injectClientConfig, renderSpaHtml } from './functions/middleware/spa'
-import type { Env } from './functions/lib/env'
+import { FALLBACK_HTML } from './server/generated/spa-fallback-html'
+import { api } from './server/routes'
+import { getSystemConfig } from './server/dao/config.dao'
+import { generateNonce, addSecurityHeaders } from './server/middleware/security'
+import { getCorsOrigin, addCorsHeaders, createCorsPreflightResponse } from './server/middleware/cors'
+import { applyCacheHeaders } from './server/middleware/cache'
+import { injectClientConfig, renderSpaHtml } from './server/middleware/spa'
+import type { Env } from './server/utils/env'
 
 type AppEnv = { Bindings: Env }
 
@@ -72,6 +72,7 @@ export default {
           const isAllowed =
             url.pathname.startsWith('/api/admin/') ||
             url.pathname === '/api/auth/login' ||
+            url.pathname === '/api/auth/verify' ||
             url.pathname === '/api/auth/refresh' ||
             url.pathname === '/api/auth/check' ||
             url.pathname === '/api/auth/logout' ||
