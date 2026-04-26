@@ -53,21 +53,21 @@ export default function SmartChat() {
   const defaultSkills: ChatSkill[] = useMemo(() => [
     {
       id: 'health-advisor',
-      name: t('chat.skills.health-advisor.name'),
-      description: t('chat.skills.health-advisor.description'),
-      systemPrompt: t('chat.skills.health-advisor.systemPrompt'),
+      name: t('chat.skillsList.health-advisor.name'),
+      description: t('chat.skillsList.health-advisor.description'),
+      systemPrompt: t('chat.skillsList.health-advisor.systemPrompt'),
     },
     {
       id: 'nutritionist',
-      name: t('chat.skills.nutritionist.name'),
-      description: t('chat.skills.nutritionist.description'),
-      systemPrompt: t('chat.skills.nutritionist.systemPrompt'),
+      name: t('chat.skillsList.nutritionist.name'),
+      description: t('chat.skillsList.nutritionist.description'),
+      systemPrompt: t('chat.skillsList.nutritionist.systemPrompt'),
     },
     {
       id: 'fitness-coach',
-      name: t('chat.skills.fitness-coach.name'),
-      description: t('chat.skills.fitness-coach.description'),
-      systemPrompt: t('chat.skills.fitness-coach.systemPrompt'),
+      name: t('chat.skillsList.fitness-coach.name'),
+      description: t('chat.skillsList.fitness-coach.description'),
+      systemPrompt: t('chat.skillsList.fitness-coach.systemPrompt'),
     },
   ], [t])
 
