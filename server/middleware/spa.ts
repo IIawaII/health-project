@@ -11,18 +11,7 @@ function escapeHtml(str: string): string {
   return str.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!)
 }
 
-function addNonceToScripts(html: string, nonce?: string): string {
-  if (!nonce) return html
-  // 仅给没有 nonce 且不是 JSON/LD 数据类型的 script 标签注入 nonce
-  // 避免误匹配 <script type="application/json"> 等非 JS 脚本块
-  return html.replace(
-    /<script\b(?![^>]*\bnonce=)(?![^>]*\btype=["']application\/(json|ld\+json)["'])/g,
-    `<script nonce="${nonce}"`
-  )
-}
-
-export function injectClientConfig(html: string, env: Env, nonce?: string, extraConfig?: Record<string, string>): string {
-  const htmlWithNonce = addNonceToScripts(html, nonce)
+export function injectClientConfig(html: string, env: Env, extraConfig?: Record<string, string>): string {
   const config: Record<string, string> = {}
   if (env.TURNSTILE_SITE_KEY) {
     config.TURNSTILE_SITE_KEY = env.TURNSTILE_SITE_KEY
@@ -30,30 +19,29 @@ export function injectClientConfig(html: string, env: Env, nonce?: string, extra
   if (extraConfig) {
     Object.assign(config, extraConfig)
   }
-  if (Object.keys(config).length === 0) return htmlWithNonce
+  if (Object.keys(config).length === 0) return html
 
-  const nonceAttr = nonce ? ` nonce="${nonce}"` : ''
-  const script = `<script${nonceAttr}>window.__ENV__=${JSON.stringify(config)}</script>`
+  const script = `<script>window.__ENV__=${JSON.stringify(config)}</script>`
 
   // 如果 HTML 中已存在 window.__ENV__（构建时注入），尝试合并而不是重复插入
-  const existingMatch = htmlWithNonce.match(/<script[^>]*>window\.__ENV__=(\{[^<]*\})<\/script>/)
+  const existingMatch = html.match(/<script[^>]*>window\.__ENV__=(\{[^<]*\})<\/script>/)
   if (existingMatch) {
     try {
       const existing = JSON.parse(existingMatch[1]) as Record<string, string>
       const merged = { ...existing, ...config }
-      return htmlWithNonce.replace(
+      return html.replace(
         /<script[^>]*>window\.__ENV__=\{[^<]*\}<\/script>/,
-        `<script${nonceAttr}>window.__ENV__=${JSON.stringify(merged)}</script>`
+        `<script>window.__ENV__=${JSON.stringify(merged)}</script>`
       )
     } catch {
       // 解析失败，fallback 到在 </head> 前插入新脚本
     }
   }
 
-  return htmlWithNonce.replace('</head>', `${script}</head>`)
+  return html.replace('</head>', `${script}</head>`)
 }
 
-export async function renderSpaHtml(response: Response, env: Env, nonce: string): Promise<Response> {
+export async function renderSpaHtml(response: Response, env: Env): Promise<Response> {
   const html = await response.text()
 
   // 查询系统配置并注入到 HTML
@@ -73,7 +61,7 @@ export async function renderSpaHtml(response: Response, env: Env, nonce: string)
     // 配置查询失败时静默降级，不影响页面渲染
   }
 
-  let injected = injectClientConfig(html, env, nonce, extraConfig)
+  let injected = injectClientConfig(html, env, extraConfig)
 
   // 如果有站点名称配置，替换 <title>
   if (extraConfig.SITE_NAME) {

@@ -2,7 +2,7 @@ import { Hono } from 'hono'
 import { FALLBACK_HTML } from './server/generated/spa-fallback-html'
 import { api } from './server/routes'
 import { getSystemConfig } from './server/dao/config.dao'
-import { generateNonce, addSecurityHeaders } from './server/middleware/security'
+import { addSecurityHeaders } from './server/middleware/security'
 import { getCorsOrigin, addCorsHeaders, createCorsPreflightResponse } from './server/middleware/cors'
 import { applyCacheHeaders } from './server/middleware/cache'
 import { injectClientConfig, renderSpaHtml } from './server/middleware/spa'
@@ -97,15 +97,14 @@ export default {
 
       // SPA 路由回退：非 API 请求且非静态资源请求返回 index.html
       if (!url.pathname.startsWith('/api/') && !isStaticAsset(url.pathname)) {
-        const nonce = generateNonce()
         if (env.ASSETS) {
           const indexRequest = new Request(new URL('/index.html', request.url), request)
           const indexResponse = await env.ASSETS.fetch(indexRequest)
           if (indexResponse.ok) {
-            return renderSpaHtml(indexResponse, env, nonce)
+            return renderSpaHtml(indexResponse, env)
           }
         }
-        const res = new Response(injectClientConfig(FALLBACK_HTML, env, nonce), {
+        const res = new Response(injectClientConfig(FALLBACK_HTML, env), {
           headers: { 'Content-Type': 'text/html', 'Cache-Control': 'no-cache, no-store, must-revalidate' },
         })
         return addSecurityHeaders(res, true)
@@ -116,10 +115,9 @@ export default {
         const assetResponse = await env.ASSETS.fetch(request)
 
         if (assetResponse.status === 404 && !url.pathname.startsWith('/api/')) {
-          const nonce = generateNonce()
           const indexRequest = new Request(new URL('/index.html', request.url), request)
           const indexResponse = await env.ASSETS.fetch(indexRequest)
-          return renderSpaHtml(indexResponse, env, nonce)
+          return renderSpaHtml(indexResponse, env)
         }
 
         return applyCacheHeaders(assetResponse, url.pathname)
