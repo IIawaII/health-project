@@ -12,6 +12,9 @@ import {
   cleanupExpiredVerificationCodes,
 } from '../../dao/verification.dao';
 import type { AppContext } from '../../utils/handler';
+import i18n from '../../../src/i18n';
+
+const t = i18n.t.bind(i18n);
 
 interface SendCodeRequest {
   email: string;
@@ -71,15 +74,15 @@ async function sendEmailViaResend(apiKey: string, resendDomain: string | undefin
     const errMsg = typeof errorData.message === 'string' ? errorData.message : JSON.stringify(errorData);
 
     if (response.status === 401 || response.status === 403) {
-      throw new EmailSendError('邮件服务认证失败，请联系管理员检查邮件 API 配置', response.status);
+      throw new EmailSendError(t('auth.verification.emailAuthFailed', '邮件服务认证失败，请联系管理员检查邮件 API 配置'), response.status);
     }
     if (response.status === 422 && errMsg.includes('invalid')) {
-      throw new EmailSendError('邮箱地址格式不受邮件服务商支持', 422);
+      throw new EmailSendError(t('auth.verification.emailProviderUnsupported', '邮箱地址格式不受邮件服务商支持'), 422);
     }
     if (response.status >= 500) {
-      throw new EmailSendError('邮件服务商暂时不可用，请稍后重试', response.status);
+      throw new EmailSendError(t('auth.verification.emailServiceUnavailable', '邮件服务商暂时不可用，请稍后重试'), response.status);
     }
-    throw new EmailSendError(`邮件发送失败: ${errMsg}`, response.status);
+    throw new EmailSendError(t('auth.verification.emailSendFailed', '邮件发送失败: {{reason}}', { reason: errMsg }), response.status);
   }
 }
 
@@ -90,21 +93,21 @@ export const onRequestPost = async (context: AppContext) => {
 
     // 验证输入
     if (!email || !type) {
-      return errorResponse('请填写所有必填字段', 400);
+      return errorResponse(t('auth.verification.missingFields', '请填写所有必填字段'), 400);
     }
 
     if (!/^[^\s@]+@([^\s@]+\.)+[^\s@]+$/.test(email)) {
-      return errorResponse('请输入有效的邮箱地址', 400);
+      return errorResponse(t('auth.verification.invalidEmail', '请输入有效的邮箱地址'), 400);
     }
 
     if (type !== 'register' && type !== 'update_email') {
-      return errorResponse('无效的验证码类型', 400);
+      return errorResponse(t('auth.verification.invalidType', '无效的验证码类型'), 400);
     }
 
     // 认证方式：注册使用 Turnstile，修改邮箱使用 Bearer Token
     if (type === 'register') {
       if (!turnstileToken) {
-        return errorResponse('请完成人机验证', 400);
+        return errorResponse(t('auth.register.errors.turnstileRequired', '请完成人机验证'), 400);
       }
       const turnstileError = await validateTurnstile(context, turnstileToken);
       if (turnstileError) return errorResponse(turnstileError, 400);
@@ -112,12 +115,12 @@ export const onRequestPost = async (context: AppContext) => {
       // 验证 Bearer Token（复用 lib/auth 中的逻辑）
       const tokenData = await verifyToken({ request: context.req.raw, env: context.env });
       if (!tokenData) {
-        return errorResponse('登录已过期', 401);
+        return errorResponse(t('settings.errors.sessionExpired', '登录已过期'), 401);
       }
       // 校验 currentEmail 是否属于当前登录用户
       const dbUser = await findUserById(context.env.DB, tokenData.userId);
       if (!dbUser || dbUser.email !== currentEmail) {
-        return errorResponse('当前邮箱信息不匹配', 403);
+        return errorResponse(t('auth.verification.emailMismatch', '当前邮箱信息不匹配'), 403);
       }
     }
 
@@ -130,20 +133,20 @@ export const onRequestPost = async (context: AppContext) => {
       windowSeconds: 3600,
     });
     if (!ipRateLimit.allowed) {
-      return errorResponse('发送过于频繁，请稍后再试', 429);
+      return errorResponse(t('auth.verification.tooManyRequests', '发送过于频繁，请稍后再试'), 429);
     }
 
     // 检查发送频率限制（60秒冷却）—— 使用 D1 替代 KV，保证与验证码数据一致性
     const cooldownCheck = await checkVerificationCooldown(context.env.DB, type, email, SEND_CODE_COOLDOWN_SECONDS);
     if (!cooldownCheck.allowed) {
-      return errorResponse(`发送过于频繁，请 ${cooldownCheck.remainingSeconds} 秒后再试`, 429);
+      return errorResponse(t('auth.verification.cooldown', '发送过于频繁，请 {{seconds}} 秒后再试', { seconds: cooldownCheck.remainingSeconds }), 429);
     }
 
     // 注册类型：检查邮箱是否已被注册
     if (type === 'register') {
       const exists = await emailExists(context.env.DB, email);
       if (exists) {
-        return errorResponse('该邮箱已被注册', 409);
+        return errorResponse(t('auth.register.errors.emailTaken', '该邮箱已被注册'), 409);
       }
     }
 
@@ -151,13 +154,13 @@ export const onRequestPost = async (context: AppContext) => {
     if (type === 'update_email') {
       const exists = await emailExists(context.env.DB, email);
       if (exists) {
-        return errorResponse('该邮箱已被使用', 409);
+        return errorResponse(t('auth.register.errors.emailTaken', '该邮箱已被使用'), 409);
       }
       if (!currentEmail) {
-        return errorResponse('缺少当前邮箱信息', 400);
+        return errorResponse(t('auth.verification.missingCurrentEmail', '缺少当前邮箱信息'), 400);
       }
       if (currentEmail === email) {
-        return errorResponse('新邮箱不能与当前邮箱相同', 400);
+        return errorResponse(t('auth.verification.sameEmail', '新邮箱不能与当前邮箱相同'), 400);
       }
     }
 
@@ -170,7 +173,7 @@ export const onRequestPost = async (context: AppContext) => {
 
     // 检查是否已配置邮件服务
     if (!context.env.RESEND_API_KEY) {
-      return errorResponse('邮件服务未配置，请联系管理员', 500);
+      return errorResponse(t('auth.verification.emailServiceNotConfigured', '邮件服务未配置，请联系管理员'), 500);
     }
 
     // 生成验证码
@@ -213,10 +216,10 @@ export const onRequestPost = async (context: AppContext) => {
 
     return jsonResponse({
       success: true,
-      message: '验证码已发送',
+      message: t('auth.verification.codeSent', '验证码已发送'),
     }, 200);
   } catch (error) {
     console.error('Send verification code error:', error);
-    return errorResponse('发送验证码失败，请稍后重试', 500);
+    return errorResponse(t('auth.verification.sendFailed', '发送验证码失败，请稍后重试'), 500);
   }
 };

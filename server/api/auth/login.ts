@@ -7,13 +7,15 @@ import { findUserByUsername, findUserByEmail, updateUserDataKey } from '../../da
 import { serializeCookie, getSecureCookieOptions, getAccessTokenCookieMaxAge, getRefreshTokenCookieMaxAge } from '../../utils/cookie';
 import type { AppContext } from '../../utils/handler';
 import { loginSchema, EMAIL_REGEX } from '../../../shared/schemas';
+import i18n from '../../../src/i18n';
+const t = i18n.t.bind(i18n);
 
 export const onRequestPost = async (context: AppContext) => {
   try {
     const body = await context.req.json<unknown>();
     const parseResult = loginSchema.safeParse(body);
     if (!parseResult.success) {
-      const firstError = parseResult.error.errors[0]?.message || '请求参数错误';
+      const firstError = parseResult.error.errors[0]?.message || t('auth.errors.invalidRequest', '请求参数错误');
       return errorResponse(firstError, 400);
     }
     const { usernameOrEmail, password, turnstileToken } = parseResult.data;
@@ -31,7 +33,7 @@ export const onRequestPost = async (context: AppContext) => {
       windowSeconds: 60,
     });
     if (!rateLimit.allowed) {
-      return errorResponse('登录尝试过于频繁，请稍后再试', 429);
+      return errorResponse(t('auth.errors.tooManyAttempts'), 429);
     }
 
     // 优先检查环境变量中的管理员凭据
@@ -41,7 +43,7 @@ export const onRequestPost = async (context: AppContext) => {
       // 校验密码格式，防止误配明文密码导致验证始终失败
       if (!/^\d+:[a-f0-9]{32}:[a-f0-9]{64}$/i.test(adminPassword)) {
         console.error('[Admin Login] ADMIN_PASSWORD 格式不正确，必须为 PBKDF2 哈希格式（iterations:salt:hash）');
-        return errorResponse('管理员账户配置异常，请联系运维人员', 500);
+        return errorResponse(t('auth.errors.adminConfigError'), 500);
       }
       const isAdminPasswordValid = await verifyPassword(password, adminPassword);
       if (isAdminPasswordValid) {
@@ -68,7 +70,7 @@ export const onRequestPost = async (context: AppContext) => {
         const cookieOptions = getSecureCookieOptions(context.req.raw);
         return jsonResponse({
           success: true,
-          message: '管理员登录成功',
+          message: t('auth.login.adminSuccess'),
           user: {
             id: 'system-admin',
             username: adminUsername,
@@ -77,12 +79,12 @@ export const onRequestPost = async (context: AppContext) => {
           },
         }, 200, {
           'Set-Cookie': [
-            serializeCookie('auth_token', accessToken, { ...cookieOptions, maxAge: getAccessTokenCookieMaxAge() }),
+            serializeCookie('auth_token', accessToken, { ...cookieOptions, maxAge: getAccessTokenCookieMaxAge('admin') }),
             serializeCookie('auth_refresh_token', refreshToken, { ...cookieOptions, maxAge: getRefreshTokenCookieMaxAge() }),
           ].join(', '),
         });
       }
-      return errorResponse('用户名或密码错误', 401);
+      return errorResponse(t('auth.login.invalidCredentials'), 401);
     }
 
     // 判断是用户名还是邮箱，直接从 D1 查询用户
@@ -93,13 +95,13 @@ export const onRequestPost = async (context: AppContext) => {
       : await findUserByUsername(context.env.DB, usernameOrEmail);
 
     if (!user) {
-      return errorResponse('用户名或密码错误', 401);
+      return errorResponse(t('auth.login.invalidCredentials'), 401);
     }
 
     // 验证密码
     const isPasswordValid = await verifyPassword(password, user.password_hash);
     if (!isPasswordValid) {
-      return errorResponse('用户名或密码错误', 401);
+      return errorResponse(t('auth.login.invalidCredentials'), 401);
     }
 
     // 为没有 data_key 的老用户自动生成并持久化
@@ -110,7 +112,7 @@ export const onRequestPost = async (context: AppContext) => {
         await updateUserDataKey(context.env.DB, user.id, dataKey);
       } catch (dbError) {
         console.error('[Login] Failed to update data_key:', dbError);
-        return errorResponse('登录失败，用户数据迁移异常', 500);
+        return errorResponse(t('auth.errors.dataMigrationError'), 500);
       }
     }
 
@@ -119,7 +121,7 @@ export const onRequestPost = async (context: AppContext) => {
     const refreshToken = generateToken();
     const tokenCreatedAt = new Date().toISOString();
 
-    // 保存 Access Token（15分钟有效期）
+    // 保存 Access Token
     await saveToken(context.env.AUTH_TOKENS, accessToken, {
       userId: user.id,
       username: user.username,
@@ -129,7 +131,7 @@ export const onRequestPost = async (context: AppContext) => {
       createdAt: tokenCreatedAt,
     });
 
-    // 保存 Refresh Token（30天有效期）
+    // 保存 Refresh Token
     await saveRefreshToken(context.env.AUTH_TOKENS, refreshToken, {
       userId: user.id,
       username: user.username,
@@ -142,7 +144,7 @@ export const onRequestPost = async (context: AppContext) => {
     const cookieOptions = getSecureCookieOptions(context.req.raw);
     return jsonResponse({
       success: true,
-      message: '登录成功',
+      message: t('auth.login.success'),
       user: {
         id: user.id,
         username: user.username,
@@ -153,12 +155,12 @@ export const onRequestPost = async (context: AppContext) => {
       },
     }, 200, {
       'Set-Cookie': [
-        serializeCookie('auth_token', accessToken, { ...cookieOptions, maxAge: getAccessTokenCookieMaxAge() }),
+        serializeCookie('auth_token', accessToken, { ...cookieOptions, maxAge: getAccessTokenCookieMaxAge(user.role ?? 'user') }),
         serializeCookie('auth_refresh_token', refreshToken, { ...cookieOptions, maxAge: getRefreshTokenCookieMaxAge() }),
       ].join(', '),
     });
   } catch (error) {
     console.error('Login error:', error);
-    return errorResponse('登录失败，请稍后重试', 500);
+    return errorResponse(t('auth.errors.loginFailed'), 500);
   }
 };

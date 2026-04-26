@@ -2,6 +2,9 @@ import { deleteToken } from '../../utils/auth';
 import { jsonResponse, errorResponse } from '../../utils/response';
 import { getCookie, serializeCookie, getSecureCookieOptions } from '../../utils/cookie';
 import type { AppContext } from '../../utils/handler';
+import i18n from '../../../src/i18n';
+
+const t = i18n.t.bind(i18n);
 
 export const onRequestPost = async (context: AppContext) => {
   try {
@@ -22,7 +25,7 @@ export const onRequestPost = async (context: AppContext) => {
     const cookieOptions = getSecureCookieOptions(context.req.raw);
     return jsonResponse({
       success: true,
-      message: '登出成功',
+      message: t('auth.logout.success'),
     }, 200, {
       'Set-Cookie': [
         serializeCookie('auth_token', '', { ...cookieOptions, maxAge: 0 }),
@@ -31,6 +34,6 @@ export const onRequestPost = async (context: AppContext) => {
     });
   } catch (error) {
     console.error('Logout error:', error);
-    return errorResponse('登出失败，请稍后重试', 500);
+    return errorResponse(t('auth.logout.error'), 500);
   }
 };

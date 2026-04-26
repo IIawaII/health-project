@@ -88,7 +88,14 @@
       "registerNow": "Register now",
       "turnstileError": "Verification failed, please refresh and retry",
       "turnstileExpired": "Verification expired, please verify again",
-      "securityNotice": "Protected by Cloudflare Turnstile"
+      "securityNotice": "Protected by Cloudflare Turnstile",
+      "success": "Login successful",
+      "invalidCredentials": "Invalid username or password",
+      "adminSuccess": "Admin login successful"
+    },
+    "logout": {
+      "success": "Logout successful",
+      "error": "Logout failed, please try again later"
     },
     "register": {
       "title": "Create Account",
@@ -119,17 +126,54 @@
       "registering": "Registering...",
       "hasAccount": "Already have an account?",
       "loginNow": "Login now",
+      "success": "Registration successful",
+      "registrationClosed": "Registration is currently closed",
       "errors": {
+        "missingField": "Please provide username or email parameter",
+        "tooManyChecks": "Too many checks, please try again later",
         "checkFailed": "Check failed, please try again later",
         "checkTimeout": "Check timeout, please check your network or try again later",
         "sendCodeFailed": "Failed to send code",
         "turnstileRequired": "Please complete the human verification",
-        "registrationFailed": "Registration failed"
+        "registrationFailed": "Registration failed",
+        "usernameReserved": "This username is reserved by the system, please choose another one",
+        "codeExpired": "Verification code expired or not found, please request a new one",
+        "codeInvalid": "Invalid verification code",
+        "dbWriteFailed": "Registration failed due to data write error, please try again later",
+        "alreadyExists": "Username or email already registered",
+        "autoLoginFailed": "Registered successfully but auto-login failed, please log in manually",
+        "tooManyAttempts": "Too many registration attempts, please try again later"
       }
+    },
+    "refresh": {
+      "success": "Token refreshed successfully",
+      "noToken": "No refresh token provided",
+      "tokenExpired": "Refresh token expired or invalid",
+      "error": "Failed to refresh token, please try again later"
+    },
+    "verification": {
+      "codeSent": "Verification code sent",
+      "missingFields": "Please fill in all required fields",
+      "invalidEmail": "Please enter a valid email address",
+      "invalidType": "Invalid verification code type",
+      "emailMismatch": "Current email does not match",
+      "tooManyRequests": "Too many requests, please try again later",
+      "cooldown": "Too many requests, please try again in {{seconds}} seconds",
+      "missingCurrentEmail": "Missing current email information",
+      "sameEmail": "New email cannot be the same as current email",
+      "emailServiceNotConfigured": "Email service not configured, please contact administrator",
+      "emailAuthFailed": "Email service authentication failed, please contact administrator to check email API configuration",
+      "emailProviderUnsupported": "Email address format not supported by the email service provider",
+      "emailServiceUnavailable": "Email service temporarily unavailable, please try again later",
+      "emailSendFailed": "Failed to send email: {{reason}}",
+      "sendFailed": "Failed to send verification code, please try again later"
     },
     "errors": {
       "invalidRequest": "Invalid request parameters",
-      "loginFailed": "Login failed"
+      "loginFailed": "Login failed",
+      "tooManyAttempts": "Too many login attempts",
+      "adminConfigError": "Admin account configuration error",
+      "dataMigrationError": "Login failed, user data migration error"
      }
   },
   "landing": {
@@ -198,7 +242,7 @@
     "zh": "中文",
     "en": "English"
   },
-  "settings": {
+    "settings": {
     "title": "Account Settings",
     "tabs": {
       "profile": "Profile",
@@ -223,11 +267,26 @@
       "codeSent": "Verification code sent"
     },
     "errors": {
+      "sessionExpired": "Session expired, please refresh and try again",
+      "tooManyAttempts": "Too many password change attempts, please try again later",
+      "userNotFound": "User not found",
+      "invalidRequest": "Invalid request parameters",
+      "currentPasswordIncorrect": "Current password is incorrect",
+      "changeFailed": "Failed to change password, please try again later",
       "invalidEmail": "Please enter a valid email",
       "invalidUsername": "Invalid username format",
       "needCode": "Please enter verification code",
       "network": "Network error, please retry",
-      "passwordMismatch": "New passwords do not match"
+      "passwordMismatch": "New passwords do not match",
+      "usernameTaken": "This username is already taken",
+      "emailTaken": "This email is already in use",
+      "codeExpired": "Verification code expired, please request a new one",
+      "codeNotFound": "Verification code not found, please request a new one",
+      "codeInvalid": "Invalid verification code",
+      "avatarRequired": "Please select an avatar",
+      "invalidAvatar": "Invalid avatar format",
+      "alreadyExists": "Username or email already in use",
+      "updateFailed": "Update failed, please try again later"
     }
   },
   "ai": {
@@ -457,7 +516,8 @@
     "analyzing": "AI is analyzing data",
     "generating": "Generating...",
     "copy": "Copy",
-    "copied": "Copied"
+    "copied": "Copied",
+    "defaultTitle": "New Chat"
   },
   "planForm": {
     "steps": {

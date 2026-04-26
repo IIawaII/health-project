@@ -4,6 +4,9 @@ import { jsonResponse, errorResponse } from '../../utils/response';
 import { getCookie, serializeCookie, getSecureCookieOptions, getAccessTokenCookieMaxAge, getRefreshTokenCookieMaxAge } from '../../utils/cookie';
 import { findUserById, updateUserDataKey } from '../../dao/user.dao';
 import type { AppContext } from '../../utils/handler';
+import i18n from '../../../src/i18n';
+
+const t = i18n.t.bind(i18n);
 
 export const onRequestPost = async (context: AppContext) => {
   try {
@@ -15,13 +18,13 @@ export const onRequestPost = async (context: AppContext) => {
     }
 
     if (!refreshToken) {
-      return errorResponse('未提供刷新令牌', 401);
+      return errorResponse(t('auth.refresh.noToken', '未提供刷新令牌'), 401);
     }
 
     // 验证 Refresh Token
     const refreshData = await verifyRefreshToken(context.env.AUTH_TOKENS, refreshToken);
     if (!refreshData) {
-      return errorResponse('刷新令牌已过期或无效', 401);
+      return errorResponse(t('auth.refresh.tokenExpired', '刷新令牌已过期或无效'), 401);
     }
 
     // 从数据库获取最新的 data_key；老用户无 data_key 时自动生成
@@ -70,7 +73,7 @@ export const onRequestPost = async (context: AppContext) => {
     const cookieOptions = getSecureCookieOptions(context.req.raw);
     return jsonResponse({
       success: true,
-      message: '令牌刷新成功',
+      message: t('auth.refresh.success', '令牌刷新成功'),
       user: {
         id: refreshData.userId,
         username: refreshData.username,
@@ -80,12 +83,12 @@ export const onRequestPost = async (context: AppContext) => {
       },
     }, 200, {
       'Set-Cookie': [
-        serializeCookie('auth_token', accessToken, { ...cookieOptions, maxAge: getAccessTokenCookieMaxAge() }),
+        serializeCookie('auth_token', accessToken, { ...cookieOptions, maxAge: getAccessTokenCookieMaxAge(refreshData.role ?? 'user') }),
         serializeCookie('auth_refresh_token', newRefreshToken, { ...cookieOptions, maxAge: getRefreshTokenCookieMaxAge() }),
       ].join(', '),
     });
   } catch (error) {
     console.error('Refresh token error:', error);
-    return errorResponse('刷新令牌失败，请稍后重试', 500);
+    return errorResponse(t('auth.refresh.error', '刷新令牌失败，请稍后重试'), 500);
   }
 };

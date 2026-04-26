@@ -10,11 +10,11 @@ export interface TokenData {
 /** Refresh Token 数据结构与 Access Token 相同 */
 export type RefreshTokenData = TokenData
 
-export const ACCESS_TOKEN_TTL = 15 * 60 // 15 分钟
+export const ACCESS_TOKEN_TTL = 7 * 24 * 60 * 60 // 7 天
 export const REFRESH_TOKEN_TTL = 30 * 24 * 60 * 60 // 30 天
 
-/** 管理员 Access Token 有效期（1小时） */
-export const ADMIN_ACCESS_TOKEN_TTL = 60 * 60
+/** 管理员 Access Token 有效期（5小时） */
+export const ADMIN_ACCESS_TOKEN_TTL = 5 * 60 * 60
 /** 管理员 Refresh Token 有效期（24小时） */
 export const ADMIN_REFRESH_TOKEN_TTL = 24 * 60 * 60
 

@@ -68,9 +68,10 @@ export function getSecureCookieOptions(request: Request): CookieOptions {
 
 /**
  * 获取 token 的 Cookie 有效期（秒）
+ * @param role - 用户角色，admin 返回 5 小时，其他返回 7 天
  */
-export function getAccessTokenCookieMaxAge(): number {
-  return 15 * 60 // 15 分钟
+export function getAccessTokenCookieMaxAge(role?: string): number {
+  return role === 'admin' ? 5 * 60 * 60 : 7 * 24 * 60 * 60
 }
 
 export function getRefreshTokenCookieMaxAge(): number {

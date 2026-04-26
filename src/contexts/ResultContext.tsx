@@ -4,6 +4,7 @@ import { ResultContext } from '@/types/result';
 import type { ChatMessage, ChatSession } from '@/types';
 import { getAnonymousId } from '@/utils/anonymousId';
 import { trimChatMessages } from '@/utils/trimMessages';
+import i18n from '@/i18n';
 
 interface StoredData {
   analysisResult: string;
@@ -11,7 +12,6 @@ interface StoredData {
   chatSessions?: ChatSession[];
   activeSessionId?: string | null;
 }
-
 
 const SAVE_DEBOUNCE_MS = 800;
 const MAX_STORAGE_SIZE = 4 * 1024 * 1024;
@@ -24,9 +24,9 @@ function getSessionTitle(messages: ChatMessage[]): string {
   const firstUserMsg = messages.find((m) => m.role === 'user');
   if (firstUserMsg) {
     const text = firstUserMsg.content.trim();
-    return text.length > 20 ? text.slice(0, 20) + '...' : text || '新对话';
+    return text.length > 20 ? text.slice(0, 20) + '...' : text || i18n.t('result.defaultTitle', '新对话');
   }
-  return '新对话';
+  return i18n.t('result.defaultTitle', '新对话');
 }
 
 /** 校验消息结构是否合法 */
@@ -226,7 +226,8 @@ export function ResultProvider({ children }: { children: ReactNode }) {
       return prev.map((s) => {
         if (s.id !== currentId) return s;
         const newMessages = typeof messages === 'function' ? messages(s.messages) : messages;
-        const title = s.title === '新对话' && newMessages.length > 0 ? getSessionTitle(newMessages) : s.title;
+        const defaultTitle = i18n.t('result.defaultTitle', '新对话');
+        const title = s.title === defaultTitle && newMessages.length > 0 ? getSessionTitle(newMessages) : s.title;
         return { ...s, messages: newMessages, title, updatedAt: Date.now() };
       });
     });
@@ -236,7 +237,7 @@ export function ResultProvider({ children }: { children: ReactNode }) {
     const id = generateId();
     const newSession: ChatSession = {
       id,
-      title: '新对话',
+      title: i18n.t('result.defaultTitle', '新对话'),
       messages: [],
       createdAt: Date.now(),
       updatedAt: Date.now(),
@@ -294,5 +295,3 @@ export function ResultProvider({ children }: { children: ReactNode }) {
     </ResultContext.Provider>
   );
 }
-
-
