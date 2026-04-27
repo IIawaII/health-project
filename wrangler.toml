@@ -23,10 +23,6 @@ id = "KV_AUTH_TOKENS_ID"
 binding = "VERIFICATION_CODES"
 id = "KV_VERIFICATION_CODES_ID"
 
-[[migrations]]
-tag = "v1"
-new_classes = ["TokenStore"]
-
 # D1 Database:
 #   - DB
 #
