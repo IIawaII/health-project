@@ -2,7 +2,7 @@
  * User DAO - 用户数据访问层 (Drizzle ORM)
  */
 
-import { eq, and, ne, or, count, sql } from 'drizzle-orm'
+import { eq, and, ne, or, count, sql, gte } from 'drizzle-orm'
 import { getDb, users, type DbClient } from '../db'
 import { getLogger } from '../utils/logger'
 
@@ -238,14 +238,15 @@ export async function getUserList(
 }
 
 export async function getDailyUserStats(d1: D1Database, days: number = 30): Promise<{ date: string; count: number }[]> {
+  const cutoff = Math.floor(Date.now() / 1000) - days * 86400;
   const result = await db(d1)
     .select({
       date: sql<string>`date(${users.created_at}, 'unixepoch')`,
       count: count(),
     })
     .from(users)
-    .where(sql`${users.created_at} >= strftime('%s', 'now', ${`-${days} days`})`)
+    .where(gte(users.created_at, cutoff))
     .groupBy(sql`date(${users.created_at}, 'unixepoch')`)
     .orderBy(sql`date ASC`)
-  return result as { date: string; count: number }[]
+  return result as { date: string; count: number }[];
 }

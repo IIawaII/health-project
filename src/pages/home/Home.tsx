@@ -89,7 +89,7 @@ export default function Home() {
             const Icon = item.icon
             return (
               <div key={item.title} className="flex flex-col items-center gap-2">
-                <div className="w-12 h-12 rounded-xl bg-white shadow-card flex items-center justify-center">
+                <div className="w-12 h-12 rounded-xl bg-white dark:bg-slate-700 shadow-card flex items-center justify-center">
                   <Icon className="w-6 h-6 text-primary" />
                 </div>
                 <span className="text-sm font-medium text-foreground">{item.title}</span>
@@ -109,7 +109,7 @@ export default function Home() {
               <Link
                 key={feature.path}
                 to={feature.path}
-                className="group relative bg-white rounded-2xl p-6 border border-gray-100 shadow-card hover:shadow-card-hover transition-all duration-300 hover:-translate-y-1"
+                className="group relative bg-white dark:bg-slate-800 rounded-2xl p-6 border border-gray-100 shadow-card hover:shadow-card-hover transition-all duration-300 hover:-translate-y-1"
               >
                 <div className="flex items-start gap-5">
                   <div

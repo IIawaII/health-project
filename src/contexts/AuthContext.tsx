@@ -19,6 +19,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 const API_BASE_URL = '';
 const REFRESH_LOCK_KEY = 'auth_refresh_lock';
+const LOGOUT_FLAG_KEY = 'auth_logout_flag';
 
 function extractUser(data: unknown): User | null {
   const userData = getObjectField(data, 'user');
@@ -134,6 +135,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
    * 检查当前认证状态（页面初始化 / 主动调用）
    */
   const checkAuth = useCallback(async () => {
+    // 如果当前正在登出，直接放弃验证，保持未登录状态
+    if (localStorage.getItem(LOGOUT_FLAG_KEY)) {
+      clearUserCache();
+      setState({ isAuthenticated: false, user: null, isLoading: false });
+      return;
+    }
+
     try {
       const response = await fetchWithTimeout(`${API_BASE_URL}/api/auth/verify`, {
         timeout: 10000,
@@ -193,10 +201,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     useCallback(() => {
       setState({ isAuthenticated: false, user: null, isLoading: false });
     }, []),
-    useCallback(() => window.location.reload(), [])
+    useCallback(() => {
+      // 如果已登出，忽略其他标签页的 login 事件，不刷新页面
+      if (localStorage.getItem(LOGOUT_FLAG_KEY)) return;
+      window.location.reload();
+    }, [])
   );
 
   const handleAuthSuccess = useCallback((data: unknown): AuthResponse => {
+    // 清除登出标记，允许后续自动验证
+    try {
+      localStorage.removeItem(LOGOUT_FLAG_KEY);
+    } catch { /* ignore */ }
+
     const user = extractUser(data);
     setAuthenticatedState(user);
     broadcastAuthChange('login');
@@ -260,6 +277,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = useCallback(async () => {
     // 先记录当前用户ID，用于登出后清理该用户的本地数据
     const currentUserId = state.user?.id;
+
+    // 设置登出标志，阻止后续自动重新登录
+    try {
+      localStorage.setItem(LOGOUT_FLAG_KEY, '1');
+    } catch {
+      // ignore
+    }
 
     // 1. 立刻清除刷新锁，防止其他标签页卡住
     try {
