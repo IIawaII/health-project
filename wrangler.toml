@@ -10,6 +10,11 @@ directory = "./dist"
 command = "npm run build"
 watch_dir = ["src", "server", "worker.ts"]
 
+[observability]
+[observability.logs]
+enabled = true
+invocation_logs = true
+
 [[d1_databases]]
 binding = "DB"
 database_name = "cloud-health-db"

@@ -15,7 +15,6 @@ const SENSITIVE_PATHS = [
   '/api/auth/change_password',
   '/api/auth/update_profile',
   '/api/auth/logout',
-  '/api/auth/send_verification_code',
   '/api/admin/users',   // PATCH / DELETE
   '/api/admin/config',  // PUT
 ]
