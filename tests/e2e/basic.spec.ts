@@ -19,4 +19,24 @@ test.describe('Basic E2E Tests', () => {
     await page.goto(`${BASE_URL}/login`);
     await expect(page.locator('input[type="password"]')).toBeVisible();
   });
+
+  test('public config endpoint returns data', async ({ request }) => {
+    const response = await request.get(`${BASE_URL}/api/config/public`);
+    expect(response.ok()).toBeTruthy();
+  });
+
+  test('security headers present on HTML response', async ({ page }) => {
+    const response = await page.goto(BASE_URL);
+    const headers = response?.headers() || {};
+
+    expect(headers['content-security-policy']).toBeDefined();
+    expect(headers['x-content-type-options']).toBe('nosniff');
+    expect(headers['x-frame-options']).toBe('DENY');
+  });
+
+  test('unknown route redirects to landing page', async ({ page }) => {
+    await page.goto(`${BASE_URL}/this-route-does-not-exist`);
+    await page.waitForURL(/\/$/, { timeout: 5000 });
+    expect(page.url()).toMatch(/\/$/);
+  });
 });

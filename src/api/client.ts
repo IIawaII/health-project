@@ -1,4 +1,4 @@
-const CSRF_COOKIE_NAME = 'csrf-token'
+const CSRF_COOKIE_NAME = '__Host-csrf-token'
 const CSRF_HEADER_NAME = 'X-CSRF-Token'
 
 function getCsrfTokenFromCookie(): string | null {

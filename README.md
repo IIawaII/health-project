@@ -5,7 +5,7 @@
 # 基于 Cloudflare Workers 的智能健康管理平台
 
 [![License: ISC](https://img.shields.io/badge/License-ISC-blue.svg)](LICENSE)
-[![Node.js >=20](https://img.shields.io/badge/Node.js-%3E%3D20-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
+[![Node.js >=22](https://img.shields.io/badge/Node.js-%3E%3D22-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
 [![Cloudflare Workers](https://img.shields.io/badge/Cloudflare-Workers-F38020?logo=cloudflare&logoColor=white)](https://workers.cloudflare.com/)
 [![React 18](https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=white)](https://react.dev/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
@@ -259,7 +259,7 @@ npm run dev
 
 ### 方式一：GitHub Actions 自动部署（推荐）
 
-项目已配置 GitHub Actions，push 到 `main` 分支时自动执行：Lint → 类型检查 → 单元测试 → 迁移 → 部署 → 密钥同步。
+项目已配置 GitHub Actions，push 到 `main` 分支时自动执行：Lint → 类型检查 → 单元测试 → 迁移 → 密钥同步 → 部署 → 健康检查。
 
 #### 1. Fork 本项目
 
@@ -466,6 +466,10 @@ npx wrangler d1 time-travel restore cloud-health-db --bookmark=00000085-0000024c
 ```
 
 > 恢复操作可撤销，系统会返回上一个书签用于回退。
+
+> **备份局限性**：当前备份数据存储在 D1 `backup_records` 表内（元数据），实际数据以 JSON 格式导出。
+> 如果 D1 完全不可用，备份数据也将无法访问。
+> **建议**：生产环境可考虑将备份数据导出到 Cloudflare R2 对象存储，实现异地容灾。
 
 ### 管理后台备份
 

@@ -81,7 +81,7 @@ export default function Register() {
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
   };
 
-  const checkAvailability = async (field: 'username' | 'email', value: string) => {
+  const checkAvailability = useCallback(async (field: 'username' | 'email', value: string) => {
     if (!value) return;
     if (field === 'email' && !validateEmail(value)) return;
     if (field === 'username' && !/^[a-zA-Z0-9_]{3,10}$/.test(value)) return;
@@ -140,14 +140,14 @@ export default function Register() {
         checkAbortRef.current = null;
       }
     }
-  };
+  }, [t]);
 
   const debouncedCheck = useCallback((field: 'username' | 'email', value: string) => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
       checkAvailability(field, value);
     }, 500);
-  }, []);
+  }, [checkAvailability]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;

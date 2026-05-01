@@ -15,7 +15,7 @@ const EXEMPT_PATHS = new Set([
   '/api/auth/check',
 ])
 
-const CSRF_COOKIE_NAME = 'csrf-token'
+const CSRF_COOKIE_NAME = '__Host-csrf-token'
 const CSRF_HEADER_NAME = 'X-CSRF-Token'
 
 function timingSafeEqual(a: string, b: string): boolean {

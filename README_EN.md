@@ -5,7 +5,7 @@
 # Intelligent Health Management Platform powered by Cloudflare Workers
 
 [![License: ISC](https://img.shields.io/badge/License-ISC-blue.svg)](LICENSE)
-[![Node.js >=20](https://img.shields.io/badge/Node.js-%3E%3D20-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
+[![Node.js >=22](https://img.shields.io/badge/Node.js-%3E%3D22-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
 [![Cloudflare Workers](https://img.shields.io/badge/Cloudflare-Workers-F38020?logo=cloudflare&logoColor=white)](https://workers.cloudflare.com/)
 [![React 18](https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=white)](https://react.dev/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
@@ -466,6 +466,10 @@ npx wrangler d1 time-travel restore cloud-health-db --bookmark=00000085-0000024c
 ```
 
 > Restore operations are reversible — the system returns the previous bookmark for rollback.
+
+> **Backup Limitation**: Current backup data is stored within D1 (`backup_records` metadata) with actual data exported as JSON.
+> If D1 becomes completely unavailable, backup data will also be inaccessible.
+> **Recommendation**: For production environments, consider exporting backup data to Cloudflare R2 object storage for off-site disaster recovery.
 
 ### Admin Dashboard Backup
 
