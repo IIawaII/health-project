@@ -45,7 +45,8 @@ export async function sendEmailViaSMTP(
   config: SMTPConfig,
   to: string,
   subject: string,
-  html: string
+  html: string,
+  timeoutMs: number = SMTP_TIMEOUT_MS
 ): Promise<void> {
   if (!isValidEmail(to)) {
     throw new Error('Invalid recipient email address');
@@ -67,8 +68,8 @@ export async function sendEmailViaSMTP(
     if (timeoutId) clearTimeout(timeoutId);
     timeoutId = setTimeout(() => {
       timedOut = true;
-      try { socket.close(); } catch {}
-    }, SMTP_TIMEOUT_MS);
+      try { socket.close(); } catch { /* ignore */ }
+    }, timeoutMs);
   }
 
   function clearTimeout_() {
@@ -184,8 +185,8 @@ export async function sendEmailViaSMTP(
     await sendCommand('QUIT');
   } finally {
     clearTimeout_();
-    try { reader.cancel(); } catch {}
-    try { writer.close(); } catch {}
-    try { socket.close(); } catch {}
+    try { reader.cancel(); } catch { /* ignore */ }
+    try { writer.close(); } catch { /* ignore */ }
+    try { socket.close(); } catch { /* ignore */ }
   }
 }
