@@ -1,11 +1,19 @@
-const CSRF_COOKIE_NAME = '__Host-csrf-token'
+const CSRF_COOKIE_NAME_SECURE = '__Host-csrf-token'
+const CSRF_COOKIE_NAME_INSECURE = 'csrf-token'
 const CSRF_HEADER_NAME = 'X-CSRF-Token'
 
+function getCsrfCookieName(): string {
+  return window.location.protocol === 'https:'
+    ? CSRF_COOKIE_NAME_SECURE
+    : CSRF_COOKIE_NAME_INSECURE
+}
+
 function getCsrfTokenFromCookie(): string | null {
+  const cookieName = getCsrfCookieName()
   const cookies = document.cookie.split(';')
   for (const cookie of cookies) {
     const [name, ...rest] = cookie.trim().split('=')
-    if (name === CSRF_COOKIE_NAME) {
+    if (name === cookieName) {
       return decodeURIComponent(rest.join('='))
     }
   }

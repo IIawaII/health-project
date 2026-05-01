@@ -15,8 +15,17 @@ const EXEMPT_PATHS = new Set([
   '/api/auth/check',
 ])
 
-const CSRF_COOKIE_NAME = '__Host-csrf-token'
+const CSRF_COOKIE_NAME_SECURE = '__Host-csrf-token'
+const CSRF_COOKIE_NAME_INSECURE = 'csrf-token'
 const CSRF_HEADER_NAME = 'X-CSRF-Token'
+
+function isSecureRequest(request: Request): boolean {
+  return request.url.startsWith('https://')
+}
+
+function getCookieNameForRequest(request: Request): string {
+  return isSecureRequest(request) ? CSRF_COOKIE_NAME_SECURE : CSRF_COOKIE_NAME_INSECURE
+}
 
 function timingSafeEqual(a: string, b: string): boolean {
   if (a.length !== b.length) {
@@ -37,8 +46,9 @@ export function generateCsrfToken(): string {
   return Array.from(array, (b) => b.toString(16).padStart(2, '0')).join('')
 }
 
-export function getCsrfCookieName(): string {
-  return CSRF_COOKIE_NAME
+export function getCsrfCookieName(request?: Request): string {
+  if (request) return getCookieNameForRequest(request)
+  return CSRF_COOKIE_NAME_SECURE
 }
 
 export function getCsrfHeaderName(): string {
@@ -46,7 +56,8 @@ export function getCsrfHeaderName(): string {
 }
 
 export function buildCsrfCookie(token: string, isSecure: boolean): string {
-  return serializeCookie(CSRF_COOKIE_NAME, token, {
+  const cookieName = isSecure ? CSRF_COOKIE_NAME_SECURE : CSRF_COOKIE_NAME_INSECURE
+  return serializeCookie(cookieName, token, {
     secure: isSecure,
     sameSite: 'Strict',
     path: '/',
@@ -67,7 +78,8 @@ export function requireCsrfProtection(context: AppContext): Response | null {
     return null
   }
 
-  const cookieToken = getCookie(context.req.raw, CSRF_COOKIE_NAME)
+  const cookieName = getCookieNameForRequest(context.req.raw)
+  const cookieToken = getCookie(context.req.raw, cookieName)
   const headerToken = context.req.header(CSRF_HEADER_NAME)
 
   if (!cookieToken || !headerToken) {

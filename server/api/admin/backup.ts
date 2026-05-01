@@ -15,6 +15,8 @@ import {
   calculateNextRunAt,
   exportTableBatched,
   ALLOWED_EXPORT_TABLES,
+  filterAllowedColumns,
+  SENSITIVE_TABLE_COLUMNS,
 } from '../../dao/backup.dao'
 import { getLogger } from '../../utils/logger'
 import { encryptBackupData, decryptBackupData } from '../../utils/crypto'
@@ -109,10 +111,37 @@ async function buildBackupJson(
     }
   }
 
-  return JSON.stringify(backupData, null, 2)
+  try {
+    const jsonStr = JSON.stringify(backupData)
+    if (jsonStr.length > MAX_BACKUP_SIZE_BYTES) {
+      logger.warn('Backup data exceeds size limit, truncating large tables', {
+        sizeBytes: jsonStr.length,
+        limit: MAX_BACKUP_SIZE_BYTES,
+      })
+      const tableKeys = Object.keys(backupData).filter((k) => k.startsWith('table_'))
+      for (const key of tableKeys) {
+        const rows = backupData[key]
+        if (Array.isArray(rows) && rows.length > 100) {
+          backupData[key] = rows.slice(0, 100)
+        }
+      }
+      return JSON.stringify(backupData)
+    }
+    return jsonStr
+  } catch (err) {
+    logger.error('Failed to serialize backup data', { error: err instanceof Error ? err.message : String(err) })
+    throw new Error('Backup data too large to serialize')
+  }
 }
 
-const SENSITIVE_KV_PREFIXES = ['token:', 'refresh_token:', 'user_tokens:', 'user_refresh_tokens:', 'backup-download:']
+const SENSITIVE_KV_PREFIXES = [
+  'token:', 'refresh_token:', 'user_tokens:', 'user_refresh_tokens:',
+  'backup-download:', 'backup-encryption:', 'restore-confirm:',
+  'pre-restore-snapshot:', 'account_lockout:', 'login_failures:',
+]
+
+const MAX_KV_VALUE_SIZE = 256 * 1024
+const MAX_BACKUP_SIZE_BYTES = 10 * 1024 * 1024
 
 function isSensitiveKvKey(key: string): boolean {
   return SENSITIVE_KV_PREFIXES.some((prefix) => key.startsWith(prefix))
@@ -127,6 +156,10 @@ async function exportKvKeys(kv: KVNamespace, excludeSensitive = true): Promise<R
       if (excludeSensitive && isSensitiveKvKey(key.name)) continue
       const value = await kv.get(key.name, 'text')
       if (value !== null) {
+        if (value.length > MAX_KV_VALUE_SIZE) {
+          logger.warn('Skipping large KV entry', { key: key.name, size: value.length })
+          continue
+        }
         result[key.name] = value
       }
     }
@@ -144,12 +177,16 @@ export const onRequestGet = withAdmin(async (context: AdminContext) => {
       const token = url.searchParams.get('token')
       if (!token) return errorResponse(t('backup.errors.missingDownloadToken', '缺少下载令牌'), 400)
 
-      const stored = await context.env.AUTH_TOKENS.get(`backup-download:${token}`, 'text')
-      if (!stored) return errorResponse(t('backup.errors.invalidToken', '下载令牌无效或已过期'), 401)
+      const recordId = await context.env.AUTH_TOKENS.get(`backup-download:${token}`, 'text')
+      if (!recordId) return errorResponse(t('backup.errors.invalidToken', '下载令牌无效或已过期'), 401)
 
       await context.env.AUTH_TOKENS.delete(`backup-download:${token}`)
 
-      const [recordId, encryptionPassword] = stored.split(':||:')
+      const encryptionPassword = await context.env.AUTH_TOKENS.get(`backup-encryption:${token}`, 'text')
+      if (encryptionPassword) {
+        await context.env.AUTH_TOKENS.delete(`backup-encryption:${token}`)
+      }
+
       const record = await getBackupRecordById(context.env.DB, recordId)
       if (!record) return errorResponse(t('backup.errors.recordNotFound', '备份记录不存在'), 404)
 
@@ -227,14 +264,19 @@ export const onRequestPost = withAdmin(async (context: AdminContext) => {
       if (!record) return errorResponse(t('backup.errors.recordNotFound', '备份记录不存在'), 404)
 
       const downloadToken = crypto.randomUUID()
-      const storedValue = encryptionPassword
-        ? `${recordId}:||:${encryptionPassword}`
-        : recordId
       await context.env.AUTH_TOKENS.put(
         `backup-download:${downloadToken}`,
-        storedValue,
+        recordId,
         { expirationTtl: DOWNLOAD_TOKEN_TTL }
       )
+
+      if (encryptionPassword) {
+        await context.env.AUTH_TOKENS.put(
+          `backup-encryption:${downloadToken}`,
+          encryptionPassword,
+          { expirationTtl: DOWNLOAD_TOKEN_TTL }
+        )
+      }
 
       return jsonResponse({ success: true, data: { token: downloadToken, recordId } }, 200)
     }
@@ -369,6 +411,10 @@ export const onRequestPost = withAdmin(async (context: AdminContext) => {
       let restoredConfigs = 0
       let restoredKvKeys = 0
 
+      const preRestoreSnapshot: Record<string, unknown> = {
+        _meta: { recordId: 'pre-restore-snapshot', exportedAt: new Date().toISOString(), scope, version: '2.0' },
+      }
+
       if (scope.includes('database')) {
         const tableMap: Record<string, string> = {
           table_users: 'users',
@@ -383,6 +429,32 @@ export const onRequestPost = withAdmin(async (context: AdminContext) => {
           table_backup_records: 'backup_records',
         }
 
+        for (const [key, tableName] of Object.entries(tableMap)) {
+          try {
+            preRestoreSnapshot[key] = await exportTableBatched(context.env.DB, tableName)
+          } catch (err) {
+            logger.warn('Failed to snapshot table before restore', { tableName, error: err instanceof Error ? err.message : String(err) })
+            preRestoreSnapshot[key] = []
+          }
+        }
+
+        if (scope.includes('config')) {
+          try {
+            preRestoreSnapshot.configs = await exportTableBatched(context.env.DB, 'system_configs')
+          } catch (err) {
+            logger.warn('Failed to snapshot configs before restore', { error: err instanceof Error ? err.message : String(err) })
+            preRestoreSnapshot.configs = []
+          }
+        }
+
+        const snapshotToken = crypto.randomUUID()
+        await context.env.AUTH_TOKENS.put(
+          `pre-restore-snapshot:${snapshotToken}`,
+          JSON.stringify(preRestoreSnapshot),
+          { expirationTtl: 3600 }
+        )
+        logger.info('Pre-restore snapshot saved', { snapshotToken })
+
         const allBatchStmts: D1PreparedStatement[] = []
         const tableRowCounts: { tableName: string; count: number }[] = []
 
@@ -393,13 +465,43 @@ export const onRequestPost = withAdmin(async (context: AdminContext) => {
             logger.warn('Skipping restore for disallowed table', { tableName })
             continue
           }
-          const columns = Object.keys(rows[0] as Record<string, unknown>)
-          const placeholders = columns.map(() => '?').join(', ')
-          const sql = `INSERT OR REPLACE INTO ${tableName} (${columns.map((c) => `\`${c}\``).join(', ')}) VALUES (${placeholders})`
-          const stmt = context.env.DB.prepare(sql)
-          for (const row of rows) {
-            const values = columns.map((c) => (row as Record<string, unknown>)[c])
-            allBatchStmts.push(stmt.bind(...values))
+          const rawColumns = Object.keys(rows[0] as Record<string, unknown>)
+          const columns = filterAllowedColumns(tableName, rawColumns)
+          if (columns.length === 0) {
+            logger.warn('Skipping restore: no allowed columns', { tableName, rawColumns })
+            continue
+          }
+          if (columns.length !== rawColumns.length) {
+            const disallowed = rawColumns.filter((c) => !columns.includes(c))
+            logger.warn('Filtered disallowed columns during restore', { tableName, disallowed })
+          }
+
+          const sensitiveCols = SENSITIVE_TABLE_COLUMNS[tableName]
+          const hasSensitiveExclusion = sensitiveCols && sensitiveCols.some((sc) => !columns.includes(sc))
+
+          if (hasSensitiveExclusion) {
+            const pkCol = columns.find((c) => c === 'id' || c === 'user_id') || columns[0]
+            const updateCols = columns.filter((c) => c !== pkCol)
+            if (updateCols.length === 0) {
+              logger.warn('Skipping restore: only PK column available after sensitive exclusion', { tableName })
+              continue
+            }
+            const updateSet = updateCols.map((c) => `\`${c}\` = ?`).join(', ')
+            const sql = `UPDATE ${tableName} SET ${updateSet} WHERE \`${pkCol}\` = ?`
+            const stmt = context.env.DB.prepare(sql)
+            for (const row of rows) {
+              const pkValue = (row as Record<string, unknown>)[pkCol]
+              const updateValues = updateCols.map((c) => (row as Record<string, unknown>)[c])
+              allBatchStmts.push(stmt.bind(...updateValues, pkValue))
+            }
+          } else {
+            const placeholders = columns.map(() => '?').join(', ')
+            const sql = `INSERT OR REPLACE INTO ${tableName} (${columns.map((c) => `\`${c}\``).join(', ')}) VALUES (${placeholders})`
+            const stmt = context.env.DB.prepare(sql)
+            for (const row of rows) {
+              const values = columns.map((c) => (row as Record<string, unknown>)[c])
+              allBatchStmts.push(stmt.bind(...values))
+            }
           }
           tableRowCounts.push({ tableName, count: rows.length })
         }

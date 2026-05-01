@@ -57,7 +57,7 @@ api.use('*', async (context, next) => {
   if (csrfError) return csrfError
   await next()
 
-  const existingCsrf = getCookie(context.req.raw, getCsrfCookieName())
+  const existingCsrf = getCookie(context.req.raw, getCsrfCookieName(context.req.raw))
   if (!existingCsrf) {
     const csrfToken = generateCsrfToken()
     const isSecure = context.req.url.startsWith('https://')

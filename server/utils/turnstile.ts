@@ -1,5 +1,8 @@
 import type { AppContext } from './handler'
 import { getCache } from './cacheManager'
+import { getLogger } from './logger'
+
+const logger = getLogger('Turnstile')
 
 interface TurnstileResult {
   success: boolean
@@ -39,7 +42,8 @@ export async function verifyTurnstile(
       success,
       error: data['error-codes']?.join(', '),
     }
-  } catch {
+  } catch (err) {
+    logger.debug('Turnstile verification network error', { error: err instanceof Error ? err.message : String(err) })
     return { success: false, error: '网络错误' }
   }
 }

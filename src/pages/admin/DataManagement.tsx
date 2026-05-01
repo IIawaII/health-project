@@ -9,11 +9,9 @@ import {
   FiHelpCircle,
   FiFileText,
   FiShield,
-  FiTrash2,
-  FiAlertTriangle,
   FiRefreshCw,
 } from 'react-icons/fi'
-import { useAdminLogs, useAdminAuditLogs, clearUsageLogs, clearAuditLogs } from '@/hooks/useAdmin'
+import { useAdminLogs, useAdminAuditLogs } from '@/hooks/useAdmin'
 
 const actionConfig: Record<string, { labelKey: string; color: string; icon: React.ElementType }> = {
   analyze: { labelKey: 'dashboard.actions.analyze', color: 'bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400', icon: FiFileText },
@@ -40,8 +38,6 @@ export default function DataManagement() {
   const [page, setPage] = useState(1)
   const [actionFilter, setActionFilter] = useState('')
   const [auditActionFilter, setAuditActionFilter] = useState('')
-  const [showClearConfirm, setShowClearConfirm] = useState(false)
-  const [clearing, setClearing] = useState(false)
   const [refreshKey, setRefreshKey] = useState(0)
   const pageSize = 15
 
@@ -65,23 +61,6 @@ export default function DataManagement() {
 
   const loading = activeTab === 'usage' ? usageLoading : auditLoading
   const error = activeTab === 'usage' ? usageError : auditError
-
-  const handleClearAll = async () => {
-    setClearing(true)
-    try {
-      if (activeTab === 'usage') {
-        await clearUsageLogs()
-        refetchUsage()
-      } else {
-        await clearAuditLogs()
-        refetchAudit()
-      }
-    } finally {
-      setClearing(false)
-      setShowClearConfirm(false)
-      setPage(1)
-    }
-  }
 
   return (
     <div key={refreshKey} className="space-y-6 animate-fade-in">
@@ -157,51 +136,7 @@ export default function DataManagement() {
         )}
 
         <div className="flex-1" />
-
-        <button
-          onClick={() => setShowClearConfirm(true)}
-          className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 border border-red-200 dark:border-red-800 transition-colors"
-        >
-          <FiTrash2 className="w-4 h-4" />
-          {t('dataManagement.clearAll')}
-        </button>
       </div>
-
-      {/* Clear confirmation dialog */}
-      {showClearConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setShowClearConfirm(false)}>
-          <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-xl p-6 max-w-md w-full mx-4" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-full bg-red-50 dark:bg-red-900/20 flex items-center justify-center flex-shrink-0">
-                <FiAlertTriangle className="w-5 h-5 text-red-600 dark:text-red-400" />
-              </div>
-              <div>
-                <h3 className="text-base font-semibold text-slate-800 dark:text-slate-100">{t('dataManagement.clearConfirmTitle')}</h3>
-                <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">{t('dataManagement.clearConfirmMessage')}</p>
-              </div>
-            </div>
-            <p className="text-sm text-slate-600 dark:text-slate-300 mb-6">
-              {activeTab === 'usage' ? t('dataManagement.clearUsageWarning') : t('dataManagement.clearAuditWarning')}
-            </p>
-            <div className="flex items-center justify-end gap-3">
-              <button
-                onClick={() => setShowClearConfirm(false)}
-                className="px-4 py-2 rounded-lg text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
-              >
-                {t('dataManagement.cancel')}
-              </button>
-              <button
-                onClick={handleClearAll}
-                disabled={clearing}
-                className="px-4 py-2 rounded-lg text-sm font-medium text-white bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
-              >
-                {clearing && <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />}
-                {t('dataManagement.confirmClear')}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {error && (
         <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-4 text-red-600 dark:text-red-400 text-sm">

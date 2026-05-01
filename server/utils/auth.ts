@@ -30,6 +30,9 @@ function parseJsonSafely<T>(value: string | null): T | null {
 }
 
 import { getCookie } from './cookie'
+import { getLogger } from './logger'
+
+const logger = getLogger('Auth')
 
 /**
  * 从 Cookie 或请求头验证 Access Token
@@ -119,8 +122,8 @@ export async function deleteRefreshToken(
       try {
         const tokenData = JSON.parse(tokenDataStr) as RefreshTokenData
         await authTokens.delete(`user_refresh_tokens:${tokenData.userId}:${refreshToken}`)
-      } catch {
-        // ignore parse error
+      } catch (err) {
+        logger.debug('Failed to parse refresh token data for index cleanup', { error: err instanceof Error ? err.message : String(err) })
       }
     }
   }
@@ -144,8 +147,8 @@ export async function deleteToken(
       try {
         const tokenData = JSON.parse(tokenDataStr) as TokenData
         await authTokens.delete(`user_tokens:${tokenData.userId}:${token}`)
-      } catch {
-        // ignore parse error
+      } catch (err) {
+        logger.debug('Failed to parse access token data for index cleanup', { error: err instanceof Error ? err.message : String(err) })
       }
     }
   }

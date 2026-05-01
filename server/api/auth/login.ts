@@ -141,7 +141,7 @@ export const onRequestPost = async (context: AppContext) => {
 
         const cookieOptions = getSecureCookieOptions(context.req.raw);
         const isSecure = context.req.raw.url.startsWith('https://')
-        const existingCsrf = getCookie(context.req.raw, getCsrfCookieName())
+        const existingCsrf = getCookie(context.req.raw, getCsrfCookieName(context.req.raw))
         const csrfCookie = existingCsrf ? '' : buildCsrfCookie(generateCsrfToken(), isSecure)
         const cookies = [
           serializeCookie('auth_token', accessToken, { ...cookieOptions, maxAge: getAccessTokenCookieMaxAge('admin') }),
@@ -221,7 +221,7 @@ export const onRequestPost = async (context: AppContext) => {
 
     const cookieOptions = getSecureCookieOptions(context.req.raw);
     const isSecure = context.req.raw.url.startsWith('https://')
-    const existingCsrf = getCookie(context.req.raw, getCsrfCookieName())
+    const existingCsrf = getCookie(context.req.raw, getCsrfCookieName(context.req.raw))
     const csrfCookie = existingCsrf ? '' : buildCsrfCookie(generateCsrfToken(), isSecure)
     const cookies = [
       serializeCookie('auth_token', accessToken, { ...cookieOptions, maxAge: getAccessTokenCookieMaxAge(user.role ?? 'user') }),

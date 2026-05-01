@@ -65,6 +65,12 @@ export const onRequestPost = async (context: AppContext) => {
       const turnstileError = await validateTurnstile(context, turnstileToken);
       if (turnstileError) return errorResponse(turnstileError, 400);
     } else if (type === 'update_email') {
+      if (!turnstileToken) {
+        return errorResponse(t('auth.register.errors.turnstileRequired', '请完成人机验证'), 400);
+      }
+      const turnstileError = await validateTurnstile(context, turnstileToken);
+      if (turnstileError) return errorResponse(turnstileError, 400);
+
       const tokenData = await verifyToken({ request: context.req.raw, env: context.env });
       if (!tokenData) {
         return errorResponse(t('settings.errors.sessionExpired', '登录已过期'), 401);
@@ -113,8 +119,8 @@ export const onRequestPost = async (context: AppContext) => {
 
     try {
       await cleanupExpiredVerificationCodes(context.env.DB);
-    } catch {
-      // cleanup is non-critical, ignore errors
+    } catch (err) {
+      logger.debug('Failed to cleanup expired verification codes', { error: err instanceof Error ? err.message : String(err) })
     }
 
     if (!context.env.SMTP_USER || !context.env.SMTP_PASS) {

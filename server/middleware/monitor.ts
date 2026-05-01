@@ -1,10 +1,13 @@
 import { getDb, requestMetrics } from '../db'
 import { getLogger } from '../utils/logger'
+import { getCache } from '../utils/cacheManager'
 import type { Env } from '../utils/env'
 
 const logger = getLogger('Monitor')
 
 const DEFAULT_SUCCESS_SAMPLE_RATE = 0.1
+
+const sampleRateCache = getCache<number>('metrics_sample_rate', { ttlMs: 60_000, maxSize: 1 })
 
 export interface MetricRecord {
   path: string
@@ -16,13 +19,20 @@ export interface MetricRecord {
 }
 
 async function getSuccessSampleRate(d1: D1Database): Promise<number> {
+  const cached = sampleRateCache.get('rate')
+  if (cached !== undefined) return cached
+
   try {
     const row = await d1.prepare("SELECT value FROM system_configs WHERE key = 'metrics_sample_rate'").first<{ value: string }>()
     if (row?.value) {
       const rate = parseFloat(row.value)
-      if (!isNaN(rate) && rate >= 0 && rate <= 1) return rate
+      if (!isNaN(rate) && rate >= 0 && rate <= 1) {
+        sampleRateCache.set('rate', rate)
+        return rate
+      }
     }
   } catch { logger.debug('Failed to read metrics_sample_rate from system_configs, using default') }
+  sampleRateCache.set('rate', DEFAULT_SUCCESS_SAMPLE_RATE)
   return DEFAULT_SUCCESS_SAMPLE_RATE
 }
 

@@ -37,8 +37,8 @@ export const onRequestPost = async (context: AppContext) => {
         }
         accountname = dbUser.accountname ?? undefined;
       }
-    } catch {
-      // 忽略数据库查询错误，使用 token 中的 dataKey
+    } catch (err) {
+      logger.debug('Failed to query user from DB during refresh, using token dataKey', { error: err instanceof Error ? err.message : String(err) })
     }
 
     // 生成新的 Access Token 和 Refresh Token（Token Rotation）
@@ -70,7 +70,7 @@ export const onRequestPost = async (context: AppContext) => {
 
     const cookieOptions = getSecureCookieOptions(context.req.raw);
     const isSecure = context.req.raw.url.startsWith('https://')
-    const existingCsrf = getCookie(context.req.raw, getCsrfCookieName())
+    const existingCsrf = getCookie(context.req.raw, getCsrfCookieName(context.req.raw))
     const csrfCookie = existingCsrf ? '' : buildCsrfCookie(generateCsrfToken(), isSecure)
     const cookies = [
       serializeCookie('auth_token', accessToken, { ...cookieOptions, maxAge: getAccessTokenCookieMaxAge(refreshData.role ?? 'user') }),

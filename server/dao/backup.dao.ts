@@ -6,6 +6,7 @@ const logger = getLogger('BackupDAO')
 
 const EXPORT_BATCH_SIZE = 500
 const EXPORT_MAX_ROWS_PER_TABLE = 100_000
+const EXPORT_TIMEOUT_MS = 25_000
 
 export const ALLOWED_EXPORT_TABLES = new Set([
   'users',
@@ -20,11 +21,26 @@ export const ALLOWED_EXPORT_TABLES = new Set([
   'backup_records',
 ])
 
+const VALID_TABLE_NAME_RE = /^[a-z_][a-z0-9_]*$/
+
+const ALLOWED_COLUMNS: Record<string, Set<string>> = {
+  users: new Set(['id', 'username', 'email', 'password_hash', 'avatar', 'accountname', 'role', 'data_key', 'created_at', 'updated_at']),
+  verification_codes: new Set(['purpose', 'email', 'code', 'attempts', 'created_at', 'expires_at']),
+  verification_code_cooldowns: new Set(['purpose', 'email', 'sent_at']),
+  usage_logs: new Set(['id', 'user_id', 'action', 'metadata', 'created_at']),
+  system_configs: new Set(['key', 'value', 'updated_at']),
+  audit_logs: new Set(['id', 'admin_id', 'action', 'target_type', 'target_id', 'details', 'created_at']),
+  request_metrics: new Set(['id', 'path', 'method', 'status_code', 'latency_ms', 'user_id', 'ip', 'created_at']),
+  user_ai_configs: new Set(['user_id', 'encrypted_config', 'config_iv', 'updated_at']),
+  backup_tasks: new Set(['id', 'name', 'scope', 'frequency', 'retention_days', 'is_paused', 'last_run_at', 'next_run_at', 'created_at', 'updated_at']),
+  backup_records: new Set(['id', 'task_id', 'status', 'scope', 'size_bytes', 'started_at', 'completed_at', 'error_message', 'created_at']),
+}
+
 function db(d1: D1Database): DbClient {
   return getDb(d1)
 }
 
-const SENSITIVE_TABLE_COLUMNS: Record<string, string[]> = {
+export const SENSITIVE_TABLE_COLUMNS: Record<string, string[]> = {
   users: ['password_hash', 'data_key'],
   user_ai_configs: ['encrypted_config', 'config_iv'],
 }
@@ -42,6 +58,15 @@ function assertAllowedTable(table: string): void {
   if (!ALLOWED_EXPORT_TABLES.has(table)) {
     throw new Error(`Table "${table}" is not allowed for export/query`)
   }
+  if (!VALID_TABLE_NAME_RE.test(table)) {
+    throw new Error(`Invalid table name format: "${table}"`)
+  }
+}
+
+export function filterAllowedColumns(tableName: string, columns: string[]): string[] {
+  const allowed = ALLOWED_COLUMNS[tableName]
+  if (!allowed) return []
+  return columns.filter((c) => allowed.has(c) && VALID_TABLE_NAME_RE.test(c))
 }
 
 export async function exportTableBatched(
@@ -52,12 +77,22 @@ export async function exportTableBatched(
 ): Promise<unknown[]> {
   assertAllowedTable(table)
 
+  const startTime = Date.now()
   const sensitiveColumns = SENSITIVE_TABLE_COLUMNS[table]
 
   const allRows: unknown[] = []
   let offset = 0
 
   while (offset < maxRows) {
+    if (Date.now() - startTime > EXPORT_TIMEOUT_MS) {
+      logger.warn('Table export timed out, returning partial data', {
+        table,
+        exportedRows: allRows.length,
+        elapsedMs: Date.now() - startTime,
+      })
+      break
+    }
+
     let result: D1Result<unknown>
     if (sensitiveColumns) {
       const allColumns = await getTableColumns(d1, table)
@@ -286,7 +321,8 @@ export async function executeBackupForTask(d1: D1Database, taskId: string): Prom
       for (const table of tables) {
         try {
           backupData[`table_${table}`] = await exportTableBatched(d1, table)
-        } catch {
+        } catch (err) {
+          logger.debug('Failed to export table during backup', { table, error: err instanceof Error ? err.message : String(err) })
           backupData[`table_${table}`] = []
         }
       }
@@ -295,7 +331,8 @@ export async function executeBackupForTask(d1: D1Database, taskId: string): Prom
     if (scope.includes('config')) {
       try {
         backupData.configs = await exportTableBatched(d1, 'system_configs')
-      } catch {
+      } catch (err) {
+        logger.debug('Failed to export configs during backup', { error: err instanceof Error ? err.message : String(err) })
         backupData.configs = []
       }
     }

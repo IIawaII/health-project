@@ -1,4 +1,4 @@
-import { deleteToken, deleteRefreshToken } from '../../utils/auth';
+import { deleteToken, deleteRefreshToken, verifyToken, verifyRefreshToken } from '../../utils/auth';
 import { jsonResponse, errorResponse } from '../../utils/response';
 import { getCookie, serializeCookie, getSecureCookieOptions } from '../../utils/cookie';
 import { getCsrfCookieName } from '../../middleware/csrf';
@@ -9,7 +9,6 @@ const logger = getLogger('Logout')
 
 export const onRequestPost = async (context: AppContext) => {
   try {
-    // 优先从 Cookie 读取 token，fallback 到 Authorization header
     let token = getCookie(context.req.raw, 'auth_token');
     if (!token) {
       const authHeader = context.req.header('Authorization');
@@ -18,24 +17,28 @@ export const onRequestPost = async (context: AppContext) => {
       }
     }
 
-    // 读取 refresh token（仅从 Cookie）
     const refreshToken = getCookie(context.req.raw, 'auth_refresh_token');
 
-    // 删除 access token
+    let userId: string | undefined
     if (token) {
-      await deleteToken(context.env.AUTH_TOKENS, token);
+      const tokenData = await verifyToken({ request: context.req.raw, env: context.env })
+      userId = tokenData?.userId
+      await deleteToken(context.env.AUTH_TOKENS, token, userId);
     }
 
-    // 删除 refresh token 及其索引
     if (refreshToken) {
-      await deleteRefreshToken(context.env.AUTH_TOKENS, refreshToken);
+      if (!userId) {
+        const refreshData = await verifyRefreshToken(context.env.AUTH_TOKENS, refreshToken)
+        userId = refreshData?.userId
+      }
+      await deleteRefreshToken(context.env.AUTH_TOKENS, refreshToken, userId);
     }
 
     const cookieOptions = getSecureCookieOptions(context.req.raw);
     const cookies = [
       serializeCookie('auth_token', '', { ...cookieOptions, maxAge: 0 }),
       serializeCookie('auth_refresh_token', '', { ...cookieOptions, maxAge: 0 }),
-      serializeCookie(getCsrfCookieName(), '', { ...cookieOptions, httpOnly: false, sameSite: 'Strict', maxAge: 0 }),
+      serializeCookie(getCsrfCookieName(context.req.raw), '', { ...cookieOptions, httpOnly: false, sameSite: 'Strict', maxAge: 0 }),
     ]
     return jsonResponse({
       success: true,
