@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useMemo, useCallback, type ReactNode } from 'react';
 import { useAuth } from './AuthContext';
-import { ResultContext } from '@/types/result';
+import { ResultContext } from './resultContextBase';
 import type { ChatMessage, ChatSession } from '@/types';
 import { getAnonymousId } from '@/utils/anonymousId';
 import { trimChatMessages } from '@/utils/trimMessages';

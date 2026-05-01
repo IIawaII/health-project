@@ -3,9 +3,7 @@ import { checkRateLimit, buildRateLimitKey } from '../../utils/rateLimit';
 import { usernameExists, emailExists } from '../../dao/user.dao';
 import { getLogger } from '../../utils/logger';
 import type { AppContext } from '../../utils/handler';
-import i18n from '../../../src/i18n';
-
-const t = i18n.t.bind(i18n);
+import { t } from '../../../shared/i18n/server';
 const logger = getLogger('Check')
 
 interface CheckRequest {
@@ -26,9 +24,9 @@ export const onRequestPost = async (context: AppContext) => {
     // 该接口仅用于注册页辅助提示；若限流存储暂时不可用，则降级放行，避免整个注册表单不可用。
     try {
       const rateLimit = await checkRateLimit({
-        kv: context.env.AUTH_TOKENS,
+        env: context.env,
         key: buildRateLimitKey({ request: context.req.raw }, 'check'),
-        limit: 10,
+        limit: 20,
         windowSeconds: 60,
       });
       if (!rateLimit.allowed) {

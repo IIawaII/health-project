@@ -72,8 +72,9 @@ test.describe('核心用户流程', () => {
   test('管理后台访问验证', async ({ page }) => {
     await page.goto(`${BASE_URL}/admin`)
 
-    // 未登录应重定向或显示登录提示
+    // 未登录应重定向到首页
+    await page.waitForURL(/\/$|\/login|\/home/, { timeout: 5000 })
     const currentUrl = page.url()
-    expect(currentUrl).toMatch(/login|admin/)
+    expect(currentUrl).not.toContain('/admin')
   })
 })

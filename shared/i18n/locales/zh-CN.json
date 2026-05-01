@@ -49,9 +49,11 @@
   "admin": {
     "title": "后台管理",
     "dashboard": "仪表盘",
+    "dashboardSubtitle": "系统概览与数据统计",
     "users": "用户管理",
     "data": "数据管理",
     "config": "系统配置",
+    "backups": "备份管理",
     "collapse": "收起",
     "collapseExpand": "展开侧边栏",
     "collapseCollapse": "收起侧边栏",
@@ -65,14 +67,46 @@
       "edit": "编辑角色",
       "delete": "删除",
       "confirm": "确认",
-      "cancel": "取消"
+      "cancel": "取消",
+      "noPermission": "权限不足"
     },
     "errors": {
       "fetchStatsFailed": "获取统计数据失败",
       "fetchUsersFailed": "获取用户列表失败",
       "fetchLogsFailed": "获取日志失败",
       "fetchAuditLogsFailed": "获取审计日志失败",
-      "fetchConfigFailed": "获取配置失败"
+      "fetchConfigFailed": "获取配置失败",
+      "clearLogsFailed": "清空使用日志失败",
+      "clearAuditLogsFailed": "清空审计日志失败",
+      "missingUserId": "缺少用户ID",
+      "userNotFound": "用户不存在",
+      "cannotDegradeSelf": "系统管理员不能降低自身角色，这会导致失去管理权限而无法恢复",
+      "cannotDegradeSystemAdmin": "不能降低系统管理员的角色",
+      "onlySystemAdminCanModify": "只有系统管理员才能修改系统管理员账户的权限",
+      "onlySystemAdminCanRevoke": "只有系统管理员才能取消其他管理员的管理员权限",
+      "onlySystemAdminCanGrant": "只有系统管理员才能授予管理员权限",
+      "updateUserFailed": "更新用户失败",
+      "cannotDeleteSelf": "不能删除自己的管理员账户",
+      "cannotDeleteSystemAdmin": "不能删除系统管理员账户",
+      "onlySystemAdminCanDeleteAdmin": "只有系统管理员才能删除管理员账户",
+      "deleteUserFailed": "删除用户失败",
+      "disallowedConfigKeys": "不允许修改的配置项: {{keys}}",
+      "configMustBeNumber": "{{key}} 必须是数字",
+      "configMustBeInteger": "{{key}} 必须是整数",
+      "configOutOfRange": "{{key}} 的值必须在 {{min}} 到 {{max}} 之间",
+      "updateConfigFailed": "更新配置失败",
+      "unauthorized": "未授权，请先登录",
+      "insufficientPermissions": "权限不足，需要管理员权限",
+      "fetchMetricsOverviewFailed": "获取性能概览失败",
+      "fetchRequestTrendFailed": "获取请求趋势失败",
+      "fetchPathStatsFailed": "获取路径统计失败",
+      "fetchStatusCodeDistFailed": "获取状态码分布失败",
+      "fetchErrorLogsFailed": "获取错误日志失败"
+    },
+    "messages": {
+      "roleUpdated": "用户角色更新成功",
+      "userDeleted": "用户删除成功",
+      "configUpdated": "配置更新成功"
     }
   },
   "turnstile": {
@@ -130,6 +164,11 @@
       "hasAccount": "已有账号？",
       "loginNow": "立即登录",
       "success": "注册成功",
+      "welcomeAvatar": "选择头像",
+      "welcomeAvatarHint": "选一个喜欢的头像吧",
+      "welcomeNickname": "称呼",
+      "welcomeNicknamePlaceholder": "你想怎么被称呼？",
+      "welcomeGo": "开始使用",
       "registrationClosed": "注册功能已关闭",
       "errors": {
         "missingField": "请提供用户名或邮箱参数",
@@ -178,8 +217,29 @@
       "adminConfigError": "管理员账户配置异常",
       "dataMigrationError": "登录失败，用户数据迁移异常",
       "tokenExpired": "令牌已过期或无效",
-      "verifyFailed": "验证失败，请稍后重试"
-    }
+      "verifyFailed": "验证失败，请稍后重试",
+      "sessionExpired": "登录已过期",
+      "unauthorized": "未授权，请先登录",
+      "forbidden": "权限不足",
+      "notFound": "资源不存在",
+      "rateLimited": "请求过于频繁，请稍后重试",
+      "payloadTooLarge": "请求数据过大"
+    },
+    "validation": {
+      "usernameFormat": "用户名只能包含字母、数字和下划线，长度3-10位",
+      "emailInvalid": "请输入有效的邮箱地址",
+      "passwordMin": "密码长度至少8位",
+      "passwordMax": "密码长度不能超过30位",
+      "passwordFormat": "密码必须同时包含字母和数字",
+      "codeFormat": "请输入6位数字验证码",
+      "turnstileRequired": "请完成人机验证",
+      "usernameOrEmailRequired": "请填写用户名或邮箱",
+      "inputTooLong": "输入过长",
+      "passwordRequired": "请填写密码",
+      "currentPasswordRequired": "请填写当前密码",
+      "passwordSameAsOld": "新密码不能与当前密码相同"
+    },
+    "welcomeText": "嗨，别来无恙啊👋"
   },
   "landing": {
     "badge": "智能健康诊断平台",
@@ -231,6 +291,7 @@
     "save": "保存",
     "cancel": "取消",
     "close": "关闭",
+    "confirm": "确定",
     "error": "出错了",
     "retry": "重试",
     "success": "成功",
@@ -238,6 +299,8 @@
     "networkError": "网络错误，请稍后重试",
     "timeoutError": "请求超时，请检查网络或稍后重试",
     "loginRequired": "请先登录",
+    "invalidParams": "参数错误",
+    "internalError": "服务器内部错误，请稍后重试",
     "on": "开",
     "off": "关"
   },
@@ -259,6 +322,8 @@
     },
     "avatar": "选择头像",
     "username": "用户名",
+    "accountname": "称呼",
+    "accountnamePlaceholder": "你想怎么被称呼？",
     "email": "邮箱",
     "verificationCode": "验证码",
     "sendCode": "获取验证码",
@@ -294,6 +359,7 @@
       "codeInvalid": "验证码错误",
       "avatarRequired": "请先选择头像",
       "invalidAvatar": "头像格式不合法",
+      "invalidAccountname": "称呼长度不能超过20个字符",
       "alreadyExists": "用户名或邮箱已被使用",
       "updateFailed": "更新失败，请稍后重试"
     }
@@ -303,7 +369,74 @@
     "serverTimeout": "服务器处理超时，请尝试上传较小的文件或稍后重试",
     "streamUnreadable": "无法读取响应流",
     "requestFailed": "请求失败: {{status}}",
-    "aiNotConfigured": "AI 服务未配置，请在设置中填写 API 信息或联系管理员"
+    "aiNotConfigured": "AI 服务未配置，请在设置中填写 API 信息或联系管理员",
+    "errors": {
+      "emptyMessage": "消息内容不能为空",
+      "messageTooLong": "消息总长度超出限制，请缩短后重试",
+      "notConfigured": "未配置 AI API，请在设置中填写或联系管理员",
+      "apiKeyInvalid": "API Key 无效或未授权，请检查 API Key 配置",
+      "endpointNotFound": "API 端点不存在，请检查 Base URL 是否正确（应为如 https://api.openai.com/v1 格式）",
+      "rateLimited": "API 请求频率超限，请稍后重试",
+      "modelFailed": "模型请求失败，请稍后重试",
+      "invalidFileFormat": "文件内容应为 base64 data URL 格式",
+      "textNotBase64": "文本文件不应为 base64 编码",
+      "pdfFormatError": "PDF 文件格式不正确，缺少 data URL 分隔符",
+      "serviceUnavailable": "分析服务暂时不可用，请稍后重试或尝试上传较小的文件",
+      "quizRateLimited": "题目生成请求过于频繁，请稍后再试",
+      "emptyQuizData": "题目数据为空，无法评分",
+      "answerMismatch": "答题数量与题目数量不匹配",
+      "missingCorrectAnswer": "第 {{index}} 题缺少正确答案数据",
+      "parseQuizFailed": "无法解析题目数据",
+      "invalidParams": "无效的请求参数",
+      "missingUrl": "缺少 url 参数",
+      "urlValidationFailed": "URL 验证失败",
+      "textContentTooLarge": "文本内容超过 {{max}}KB 限制，请缩短后重试",
+      "fileSizeExceeded": "文件大小超过 {{max}}MB 限制"
+    },
+    "validation": {
+      "fileRequired": "请上传文件",
+      "fileTooLarge": "文件数据过大",
+      "unsupportedFileType": "不支持的文件类型，仅支持 PNG、JPG、TXT",
+      "fileNameRequired": "文件名不能为空",
+      "fileNameTooLong": "文件名过长",
+      "invalidMessageRole": "消息角色只能是 user、assistant 或 system",
+      "messageContentRequired": "消息内容不能为空",
+      "messageContentTooLong": "单条消息内容过长",
+      "messagesRequired": "消息列表不能为空",
+      "tooManyMessages": "消息数量过多",
+      "questionRequired": "题目内容不能为空",
+      "questionTooLong": "题目内容过长",
+      "minOptions": "选项至少2个",
+      "maxOptions": "选项最多6个",
+      "explanationTooLong": "解析内容过长",
+      "quizModeInvalid": "mode 必须是 generate 或 grade",
+      "tooManyQuestions": "题目数量不能超过100",
+      "gradeRequiresData": "评分模式必须提供 questions 和 userAnswers"
+    },
+    "quiz": {
+      "commentExcellent": "太棒了！你的健康知识储备非常丰富，继续保持！",
+      "commentGood": "不错哦！你对健康知识有较好的了解，还有提升空间。",
+      "commentFair": "还可以！建议多关注健康知识，提升健康素养。",
+      "commentNeedsWork": "需要加油！建议你多学习一些基础健康知识，关爱自己的身体。"
+    }
+  },
+  "aiConfig": {
+    "errors": {
+      "sessionExpired": "登录已过期",
+      "getFailed": "获取 AI 配置失败",
+      "dataKeyNotInitialized": "用户数据密钥未初始化",
+      "saveFailed": "保存 AI 配置失败",
+      "deleteFailed": "清除 AI 配置失败"
+    }
+  },
+  "csrf": {
+    "missingToken": "CSRF 令牌缺失",
+    "invalidToken": "CSRF 令牌验证失败"
+  },
+  "errorBoundary": {
+    "title": "页面出现错误",
+    "message": "很抱歉，应用遇到了意外问题。您可以尝试刷新页面恢复。",
+    "refresh": "刷新页面"
   },
   "apiConfig": {
     "title": "AI 配置",
@@ -367,20 +500,30 @@
     "generating": "正在生成题目..."
   },
   "dashboard": {
+    "refresh": "刷新",
     "today": "今日新增",
     "totalCalls": "总调用",
     "activity": "人均活跃",
     "activeGrowth": "活跃增长",
     "perUser": "人均",
     "usage": "使用分布",
+    "userGrowth": "用户增长量",
+    "totalRequests": "总请求数",
+    "errorRate": "错误率",
+    "last24Hours": "近 24 小时",
+    "requestCount": "请求数",
+    "latency": "响应延迟",
+    "avgLatencyMs": "平均延迟 (ms)",
     "actions": {
       "analyze": "报告分析",
       "chat": "智能对话",
       "plan": "计划生成",
       "quiz": "健康问答"
-    }
+    },
+    "noData": "暂无数据"
   },
   "users": {
+    "refresh": "刷新",
     "title": "用户管理",
     "subtitle": "管理平台注册用户，查看、编辑和删除用户",
     "searchPlaceholder": "搜索用户名或邮箱",
@@ -402,14 +545,25 @@
       "edit": "编辑角色",
       "delete": "删除",
       "confirm": "确认",
-      "cancel": "取消"
+      "cancel": "取消",
+      "noPermission": "权限不足"
     },
     "errors": {
       "updateFailed": "更新用户角色失败，请稍后重试",
       "deleteFailed": "删除用户失败，请稍后重试"
+    },
+    "upgradeConfirm": {
+      "title": "授予管理员权限",
+      "message": "您正在将该用户升级为管理员，请确认以下事项：",
+      "risk1": "管理员可以管理所有用户，包括查看、编辑和删除用户",
+      "risk2": "管理员可以修改系统配置，影响平台全局行为",
+      "risk3": "管理员权限授予后，您也可以随时将其降级为普通用户",
+      "cancel": "取消",
+      "confirm": "确认授予"
     }
   },
   "dataManagement": {
+    "refresh": "刷新",
     "title": "数据管理",
     "subtitle": "查看平台使用日志和管理员审计记录",
     "tabs": {
@@ -421,7 +575,16 @@
       "analyze": "报告分析",
       "chat": "智能对话",
       "plan": "计划生成",
-      "quiz": "健康问答"
+      "quiz": "健康问答",
+      "updateSystemConfig": "更新系统配置",
+      "updateUserRole": "更新用户角色",
+      "deleteUser": "删除用户",
+      "createBackupTask": "创建备份任务",
+      "updateBackupTask": "更新备份任务",
+      "deleteBackupTask": "删除备份任务",
+      "executeBackup": "执行备份",
+      "restoreBackup": "恢复备份",
+      "clearUsageLogs": "清空使用日志"
     },
     "columns": {
       "actionType": "操作类型",
@@ -436,7 +599,14 @@
     "noUsageLogs": "暂无使用日志",
     "noAuditLogs": "暂无审计日志",
     "pagination": "共 {{total}} 条记录，第 {{page}} / {{totalPages}} 页",
-    "anonymous": "匿名"
+    "anonymous": "匿名",
+    "clearAll": "一键清空",
+    "clearConfirmTitle": "确认清空",
+    "clearConfirmMessage": "此操作不可撤销，请谨慎操作。",
+    "clearUsageWarning": "将清空所有使用日志数据，清空后无法恢复。",
+    "clearAuditWarning": "将清空所有审计日志数据，清空后无法恢复。",
+    "cancel": "取消",
+    "confirmClear": "确认清空"
   },
   "systemConfig": {
     "title": "系统配置",
@@ -447,19 +617,68 @@
     "updatedAt": "更新时间",
     "saved": "已保存",
     "saveFailed": "保存失败",
+    "defaultValue": "默认值",
+    "groups": {
+      "site": "站点设置",
+      "siteDesc": "自定义站点外观与展示内容",
+      "switches": "功能开关",
+      "switchesDesc": "控制平台核心功能的启用与关闭",
+      "ai": "AI 限额",
+      "aiDesc": "管理 AI 功能的使用配额",
+      "security": "安全设置",
+      "securityDesc": "管理登录安全与请求限制",
+      "email": "邮件设置",
+      "emailDesc": "管理邮件发送相关参数"
+    },
+    "confirm": {
+      "maintenanceEnable": {
+        "title": "开启维护模式",
+        "message": "开启后所有普通用户将立即无法访问平台功能，仅管理员可正常使用。确定要开启吗？"
+      },
+      "maintenanceDisable": {
+        "title": "关闭维护模式",
+        "message": "关闭后平台将恢复正常访问，所有用户均可使用。确定要关闭吗？"
+      },
+      "registrationDisable": {
+        "title": "关闭注册功能",
+        "message": "关闭后新用户将无法注册账号。确定要关闭吗？"
+      },
+      "registrationEnable": {
+        "title": "开启注册功能",
+        "message": "开启后新用户可以正常注册账号。确定要开启吗？"
+      },
+      "confirm": "确定",
+      "cancel": "取消"
+    },
+    "validation": {
+      "numberMin": "数值不能小于 {{min}}",
+      "numberMax": "数值不能大于 {{max}}",
+      "numberInvalid": "请输入有效的数字",
+      "numberInteger": "请输入整数"
+    },
+    "activeWarnings": {
+      "maintenance": "⚠️ 当前维护模式已开启，所有普通用户无法访问平台",
+      "registrationClosed": "⚠️ 注册功能已关闭，新用户无法注册"
+    },
     "displayNames": {
-      "site_name": "站点名称",
-      "welcome_message": "欢迎消息",
       "max_requests_per_day": "每日最大请求数",
       "maintenance_mode": "维护模式",
-      "enable_registration": "允许注册"
+      "enable_registration": "允许注册",
+      "max_request_body_size": "最大请求体大小",
+      "max_login_failures": "最大登录失败次数",
+      "account_lockout_seconds": "账户锁定时间（秒）",
+      "smtp_timeout_ms": "SMTP 超时（毫秒）",
+      "metrics_sample_rate": "成功请求采样率"
     },
     "descriptions": {
-      "site_name": "显示在页面标题和导航栏中的站点名称",
-      "welcome_message": "用户登录后在首页看到的欢迎语",
       "max_requests_per_day": "每个用户每天可调用 AI 功能的最大次数，0 表示不限制",
       "maintenance_mode": "开启后普通用户将无法使用平台功能",
-      "enable_registration": "关闭后将禁止新用户注册"
+      "enable_registration": "关闭后将禁止新用户注册",
+      "max_request_body_size": "API 请求体的最大允许大小（字节），默认 10MB",
+      "max_login_failures": "连续登录失败达到此次数后账户将被临时锁定",
+      "account_lockout_seconds": "账户被锁定后的自动解锁等待时间",
+      "smtp_timeout_ms": "SMTP 邮件发送的超时等待时间",
+      "metrics_sample_rate": "成功请求的采样比例，0 到 1 之间，0.1 表示采样 10%"
     }
   },
   "maintenance": {
@@ -579,9 +798,12 @@
     "text": "文本文件",
     "pdf": "PDF 文档",
     "preview": "预览",
+    "pdfHint": "PDF 文件暂不支持直接解析内容，建议上传文本格式（.txt）或截图（.png/.jpg）以获得更准确的分析结果。",
+    "pdfExtracted": "已从 PDF 提取文本内容",
     "errors": {
       "validateFailed": "文件验证失败",
-      "readFailed": "文件读取失败，请重试"
+      "readFailed": "文件读取失败，请重试",
+      "pdfEmpty": "PDF 文件中未提取到文本内容，该文件可能是扫描件或图片型 PDF"
     }
   },
   "metrics": {
@@ -621,5 +843,147 @@
     "answered": "已答 {{answered}} / {{total}} 题",
     "submit": "提交答案",
     "submitting": "提交中..."
+  },
+  "backup": {
+    "title": "备份管理",
+    "subtitle": "创建和管理系统备份任务",
+    "refresh": "刷新",
+    "createTask": "创建备份任务",
+    "empty": "暂无备份任务，点击上方按钮创建",
+    "paused": "已暂停",
+    "active": "运行中",
+    "manual": "手动",
+    "lastRun": "上次运行",
+    "nextRun": "下次运行",
+    "createdAt": "创建时间",
+    "execute": "执行备份",
+    "resume": "恢复",
+    "pause": "暂停",
+    "viewRecords": "查看记录",
+    "delete": "删除",
+    "download": "下载",
+    "viewAll": "查看全部",
+    "taskRecords": "备份记录",
+    "allRecords": "所有备份记录",
+    "retention": "保留 {{days}} 天",
+    "frequency": {
+      "manual": "手动触发",
+      "daily": "每日",
+      "weekly": "每周",
+      "monthly": "每月"
+    },
+    "scope": {
+      "database": "数据库",
+      "config": "配置"
+    },
+    "status": {
+      "completed": "完成",
+      "running": "运行中",
+      "failed": "失败",
+      "pending": "等待中"
+    },
+    "form": {
+      "name": "备份名称",
+      "namePlaceholder": "输入备份任务名称",
+      "scope": "备份内容",
+      "frequency": "备份频率",
+      "retention": "保留天数",
+      "submit": "创建",
+      "encryptionPassword": "加密密码",
+      "optional": "可选",
+      "encryptionPasswordPlaceholder": "留空则不加密",
+      "encryptionPasswordHint": "设置后，下载和恢复时需要提供此密码",
+      "errors": {
+        "nameRequired": "请输入备份名称",
+        "nameTooLong": "备份名称不能超过30个字符",
+        "scopeRequired": "请至少选择一项备份内容"
+      }
+    },
+    "table": {
+      "status": "状态",
+      "task": "任务名称",
+      "scope": "范围",
+      "size": "大小",
+      "startedAt": "开始时间",
+      "completedAt": "完成时间",
+      "actions": "操作"
+    },
+    "deleteConfirm": {
+      "title": "删除备份任务",
+      "message": "确定要删除备份任务\"{{name}}\"吗？所有相关备份记录也将被删除，此操作不可撤销。"
+    },
+    "errors": {
+      "fetchFailed": "获取备份任务失败",
+      "createFailed": "创建失败",
+      "executeFailed": "执行失败",
+      "downloadFailed": "下载失败",
+      "restoreFailed": "恢复失败",
+      "previewFailed": "预览失败",
+      "invalidBackupFile": "无效的备份文件格式",
+      "encryptionPasswordRequired": "加密备份需要提供解密密码",
+      "missingDownloadToken": "缺少下载令牌",
+      "invalidToken": "下载令牌无效或已过期",
+      "recordNotFound": "备份记录不存在",
+      "getFailed": "获取备份数据失败",
+      "missingTaskId": "缺少任务ID",
+      "taskNotFound": "备份任务不存在",
+      "missingRecordId": "缺少记录ID",
+      "operationFailed": "操作失败",
+      "updateFailed": "更新备份任务失败",
+      "deleteFailed": "删除备份任务失败"
+    },
+    "validation": {
+      "nameRequired": "备份名称不能为空",
+      "nameTooLong": "备份名称不能超过30个字符",
+      "scopeRequired": "至少选择一项备份内容",
+      "retentionMin": "保留天数至少为1天",
+      "retentionMax": "保留天数不能超过365天",
+      "invalidBackupFormat": "无效的备份数据格式：缺少 _meta 字段",
+      "confirmRequired": "请确认恢复操作"
+    },
+    "messages": {
+      "executeSuccess": "备份执行成功",
+      "restoreComplete": "恢复操作完成",
+      "createSuccess": "备份任务创建成功",
+      "updateSuccess": "备份任务更新成功",
+      "deleteSuccess": "备份任务删除成功"
+    },
+    "restore": "导入恢复",
+    "restoreResult": "恢复结果",
+    "restoreSuccess": "恢复操作已完成",
+    "restoredTables": "已恢复 {{count}} 个数据表",
+    "restoredConfigs": "已恢复 {{count}} 项配置",
+    "restoredKvKeys": "已恢复 {{count}} 个 KV 键值",
+    "restoreDialogDesc": "选择备份文件进行恢复。如果备份文件已加密，请输入解密密码。",
+    "restorePassword": "解密密码",
+    "restorePasswordPlaceholder": "未加密的备份请留空",
+    "selectFile": "选择文件",
+    "downloadDialogDesc": "如需加密备份文件，请输入加密密码。留空则下载未加密的备份。",
+    "recordsTitle": "备份记录",
+    "recordsSubtitle": "查看所有备份任务的执行记录",
+    "recordsSubtitleFiltered": "查看任务\"{{name}}\"的备份记录",
+    "noRecords": "暂无备份记录",
+    "noTaskRecords": "该任务暂无备份记录",
+    "previewTitle": "恢复预览",
+    "previewExportedAt": "导出时间",
+    "previewVersion": "版本",
+    "previewTables": "数据表",
+    "previewRows": "行",
+    "previewNamespaces": "命名空间",
+    "previewConfigs": "配置项",
+    "confirmRestore": "确认恢复",
+    "retentionDays": {
+      "7": "7 天",
+      "30": "30 天",
+      "90": "90 天",
+      "180": "180 天",
+      "365": "365 天"
+    }
+  },
+  "handler": {
+    "unauthorized": "未授权，请先登录",
+    "tooManyRequests": "请求过于频繁，请稍后重试",
+    "invalidParams": "请求参数错误",
+    "dailyLimitReached": "每日请求上限已达到，请明天再试"
   }
 }

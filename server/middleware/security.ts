@@ -9,10 +9,10 @@ export function generateNonce(): string {
   return Array.from(array, (b) => b.toString(16).padStart(2, '0')).join('')
 }
 
-export function buildCsp(): string {
+export function buildCsp(nonce: string): string {
   const directives = [
     "default-src 'self'",
-    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+    `style-src 'self' 'nonce-${nonce}' https://fonts.googleapis.com`,
     "font-src 'self' https://fonts.gstatic.com",
     "img-src 'self' data: blob: https://challenges.cloudflare.com",
     "connect-src 'self' https://challenges.cloudflare.com",
@@ -24,12 +24,12 @@ export function buildCsp(): string {
     "object-src 'none'",
     "base-uri 'self'",
     "form-action 'self'",
-    "script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com",
+    `script-src 'self' 'nonce-${nonce}' https://challenges.cloudflare.com`,
   ]
   return directives.join('; ')
 }
 
-export function addSecurityHeaders(response: Response, isHtml = false): Response {
+export function addSecurityHeaders(response: Response, isHtml = false, nonce?: string): Response {
   const headers = new Headers(response.headers)
   headers.set('X-Content-Type-Options', 'nosniff')
   headers.set('X-Frame-Options', 'DENY')
@@ -42,7 +42,8 @@ export function addSecurityHeaders(response: Response, isHtml = false): Response
     'accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()'
   )
   if (isHtml) {
-    headers.set('Content-Security-Policy', buildCsp())
+    const cspNonce = nonce || generateNonce()
+    headers.set('Content-Security-Policy', buildCsp(cspNonce))
     headers.set('Strict-Transport-Security', 'max-age=63072000; includeSubDomains; preload')
   }
   return new Response(response.body, {

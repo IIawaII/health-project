@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState, useRef, useMemo } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useTranslation } from 'react-i18next'
-import { useAIStream } from '../../hooks/useAI'
+import { useAIStream } from '../../hooks/useAIStream'
 import { useResult } from '@/hooks/useResult'
 import ChatInterface from '../../components/chat/ChatInterface'
 import { createChatMessage } from '../../../shared/types'

@@ -2,7 +2,7 @@
  * Audit DAO - 审计日志 (Drizzle ORM)
  */
 
-import { count, sql } from 'drizzle-orm'
+import { eq, and, count, sql } from 'drizzle-orm'
 import { getDb, auditLogs, type DbClient } from '../db'
 import { getLogger } from '../utils/logger'
 
@@ -41,24 +41,38 @@ export async function createAuditLog(
     .run()
 }
 
+export async function clearAllAuditLogs(d1: D1Database): Promise<number> {
+  const drizzleDb = db(d1)
+  const result = await drizzleDb.delete(auditLogs).run()
+  return result.meta.changes
+}
+
 export async function getAuditLogs(
   d1: D1Database,
-  options: { limit?: number; offset?: number } = {}
+  options: { limit?: number; offset?: number; action?: string } = {}
 ): Promise<{ logs: AuditLog[]; total: number }> {
   const drizzleDb = db(d1)
   const limit = options.limit ?? 20
   const offset = options.offset ?? 0
 
+  const conditions = []
+  if (options.action) {
+    conditions.push(eq(auditLogs.action, options.action))
+  }
+  const whereClause = conditions.length > 0 ? and(...conditions) : undefined
+
   const [logsResult, countResult] = await Promise.all([
     drizzleDb
       .select()
       .from(auditLogs)
+      .where(whereClause)
       .orderBy(sql`${auditLogs.created_at} DESC`)
       .limit(limit)
       .offset(offset),
     drizzleDb
       .select({ total: count() })
-      .from(auditLogs),
+      .from(auditLogs)
+      .where(whereClause),
   ])
 
   return {

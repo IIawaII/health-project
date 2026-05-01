@@ -1,14 +1,22 @@
 {
   "name": "cloud-health",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
   "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/IIawaII/cloud-health"
+  },
+  "bugs": {
+    "url": "https://github.com/IIawaII/cloud-health/issues"
+  },
+  "homepage": "https://github.com/IIawaII/cloud-health#readme",
   "engines": {
     "node": ">=20.0.0"
   },
   "scripts": {
-    "dev": "wrangler dev",
-    "build": "vite build --config configs/vite.config.ts && node scripts/generate-spa-fallback.cjs",
+    "dev": "wrangler dev --config wrangler.dev.toml",
+    "build": "node scripts/build-avatar-sprite.mjs && vite build --config configs/vite.config.ts && node scripts/generate-spa-fallback.cjs",
     "build:check": "tsc -b",
     "deploy": "wrangler deploy",
     "lint": "eslint . -c configs/eslint.config.js",
@@ -20,16 +28,20 @@
     "db:push": "drizzle-kit push --config configs/drizzle.config.ts",
     "db:studio": "drizzle-kit studio --config configs/drizzle.config.ts",
     "db:migrate": "wrangler d1 migrations apply cloud-health-db --local",
-    "db:migrate:remote": "wrangler d1 migrations apply cloud-health-db --remote"
+    "db:migrate:remote": "wrangler d1 migrations apply cloud-health-db --remote",
+    "password": "node scripts/hash-password.mjs"
   },
   "dependencies": {
     "@hono/zod-openapi": "^0.18.3",
+    "@upstash/ratelimit": "^2.0.8",
+    "@upstash/redis": "^1.37.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "drizzle-orm": "^0.45.2",
     "hono": "^4.12.15",
     "i18next": "^26.0.8",
     "i18next-browser-languagedetector": "^8.2.1",
+    "pdfjs-dist": "^4.9.155",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-i18next": "^17.0.4",
@@ -39,10 +51,17 @@
     "recharts": "^3.8.1",
     "rehype-sanitize": "^6.0.0",
     "remark-gfm": "^4.0.1",
+    "swagger-ui-dist": "^5.32.5",
     "tailwind-merge": "^3.5.0",
     "tailwindcss-animate": "^1.0.7",
     "zod": "^3.24.0"
   },
+  "browserslist": [
+    "> 1%",
+    "last 2 versions",
+    "not dead",
+    "not ie 11"
+  ],
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20250410.0",
     "@eslint/js": "^9.13.0",
@@ -65,6 +84,6 @@
     "typescript-eslint": "^8.11.0",
     "vite": "^5.4.10",
     "vitest": "^2.1.0",
-    "wrangler": "^4.84.1"
+    "wrangler": "^4.87.0"
   }
 }

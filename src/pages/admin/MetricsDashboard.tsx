@@ -9,6 +9,7 @@ import {
   LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
 } from 'recharts'
+import { fetchWithTimeout } from '@/api/client'
 
 const API_BASE = '/api/admin/metrics'
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899']
@@ -49,7 +50,7 @@ interface ErrorItem {
 }
 
 async function fetchJson<T>(url: string): Promise<T> {
-  const res = await fetch(url, { credentials: 'include' })
+  const res = await fetchWithTimeout(url)
   if (!res.ok) throw new Error(`HTTP ${res.status}`)
   const json = await res.json() as { data: T }
   return json.data

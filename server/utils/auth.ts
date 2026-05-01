@@ -10,7 +10,7 @@ export interface TokenData {
 /** Refresh Token 数据结构与 Access Token 相同 */
 export type RefreshTokenData = TokenData
 
-export const ACCESS_TOKEN_TTL = 7 * 24 * 60 * 60 // 7 天
+export const ACCESS_TOKEN_TTL = 24 * 60 * 60 // 24 小时
 export const REFRESH_TOKEN_TTL = 30 * 24 * 60 * 60 // 30 天
 
 /** 管理员 Access Token 有效期（5小时） */
@@ -153,32 +153,31 @@ export async function deleteToken(
 
 /**
  * 撤销指定用户的所有 Access Token 和 Refresh Token（用于修改密码后强制重新登录）
+ * KV list() 单次最多返回 1000 个 key，使用分页循环确保不遗漏
  */
 export async function revokeAllUserTokens(
   authTokens: KVNamespace,
   userId: string
 ): Promise<void> {
-  // 撤销 Access Tokens
-  const accessList = await authTokens.list({ prefix: `user_tokens:${userId}:` })
-  const accessDeletions: Promise<void>[] = []
-  for (const key of accessList.keys) {
-    const token = key.name.split(':').pop()
-    if (token) {
-      accessDeletions.push(authTokens.delete(`token:${token}`))
-    }
-    accessDeletions.push(authTokens.delete(key.name))
+  const deletions: Promise<void>[] = []
+
+  async function revokePrefix(prefix: string, tokenPrefix: string): Promise<void> {
+    let cursor: string | undefined
+    do {
+      const list = await authTokens.list({ prefix, cursor })
+      for (const key of list.keys) {
+        const token = key.name.split(':').pop()
+        if (token) {
+          deletions.push(authTokens.delete(`${tokenPrefix}${token}`))
+        }
+        deletions.push(authTokens.delete(key.name))
+      }
+      cursor = list.list_complete ? undefined : list.cursor
+    } while (cursor)
   }
 
-  // 撤销 Refresh Tokens
-  const refreshList = await authTokens.list({ prefix: `user_refresh_tokens:${userId}:` })
-  const refreshDeletions: Promise<void>[] = []
-  for (const key of refreshList.keys) {
-    const token = key.name.split(':').pop()
-    if (token) {
-      refreshDeletions.push(authTokens.delete(`refresh_token:${token}`))
-    }
-    refreshDeletions.push(authTokens.delete(key.name))
-  }
+  await revokePrefix(`user_tokens:${userId}:`, 'token:')
+  await revokePrefix(`user_refresh_tokens:${userId}:`, 'refresh_token:')
 
-  await Promise.all([...accessDeletions, ...refreshDeletions])
+  await Promise.all(deletions)
 }

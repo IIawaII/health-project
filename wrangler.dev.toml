@@ -1,0 +1,39 @@
+name = "cloud-health"
+workers_dev = true
+main = "worker.ts"
+compatibility_date = "2025-04-01"
+
+[assets]
+directory = "./dist"
+
+[build]
+command = "npm run build"
+watch_dir = ["src", "server", "worker.ts"]
+
+[observability]
+[observability.logs]
+enabled = true
+invocation_logs = true
+
+[triggers]
+crons = ["0 3 * * *"]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "cloud-health-db"
+database_id = "D1_DATABASE_ID"
+
+[vars]
+ENVIRONMENT = "development"
+
+[[kv_namespaces]]
+binding = "AUTH_TOKENS"
+id = "KV_AUTH_TOKENS_ID"
+
+[[kv_namespaces]]
+binding = "VERIFICATION_CODES"
+id = "KV_VERIFICATION_CODES_ID"
+
+[[kv_namespaces]]
+binding = "SSRF_CACHE"
+id = "KV_SSRF_CACHE_ID"

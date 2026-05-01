@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
-import { validateFile, fileToBase64, readTextFile } from '@/utils'
+import { validateFile, fileToBase64, readTextFile, extractTextFromPdf } from '@/utils'
 import { FiUpload, FiFile, FiImage, FiX, FiCheck, FiAlertCircle } from 'react-icons/fi'
 
 interface FileUploaderProps {
@@ -30,19 +30,27 @@ export default function FileUploader({ onFileSelect, onClear, selectedFile }: Fi
 
       try {
         let fileData: string
+        let fileType = file.type
         if (file.type.startsWith('image/')) {
           fileData = await fileToBase64(file)
         } else if (file.type === 'text/plain') {
           const text = await readTextFile(file)
           fileData = text
+        } else if (file.type === 'application/pdf') {
+          const text = await extractTextFromPdf(file)
+          if (!text.trim()) {
+            setError(t('fileUploader.errors.pdfEmpty', 'PDF 文件中未提取到文本内容，该文件可能是扫描件或图片型 PDF'))
+            return
+          }
+          fileData = text
+          fileType = 'text/plain'
         } else {
-          // application/pdf 也转为 base64，由后端按多模态方式交给模型解析
           fileData = await fileToBase64(file)
         }
 
         onFileSelect({
           fileData,
-          fileType: file.type,
+          fileType,
           fileName: file.name,
         })
       } catch {
@@ -150,6 +158,18 @@ export default function FileUploader({ onFileSelect, onClear, selectedFile }: Fi
                 alt={t('fileUploader.preview')}
                 className="w-full max-h-64 object-contain bg-gray-50 dark:bg-slate-700"
               />
+            </div>
+          )}
+
+          {selectedFile.fileName.toLowerCase().endsWith('.pdf') && selectedFile.fileType === 'text/plain' && (
+            <div className="mt-3 p-3 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
+              <p className="text-xs text-blue-700 dark:text-blue-300 mb-2">
+                {t('fileUploader.pdfExtracted', '已从 PDF 提取文本内容')}
+              </p>
+              <pre className="text-xs text-slate-600 dark:text-slate-400 whitespace-pre-wrap line-clamp-6 max-h-32 overflow-hidden">
+                {selectedFile.fileData.slice(0, 500)}
+                {selectedFile.fileData.length > 500 ? '…' : ''}
+              </pre>
             </div>
           )}
         </div>

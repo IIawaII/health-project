@@ -1,10 +1,10 @@
-import { useState, useRef, useEffect, useMemo } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
 import SettingsModal from '../features/SettingsModal'
 import ApiSettings from '../features/ApiSettings'
 import { hasStoredApiConfig } from '@/config/ai'
-import { getAvatarDisplayUrl } from '@/utils/avatar'
+import Avatar from '../common/Avatar'
 import {
   FiHome,
   FiFileText,
@@ -80,13 +80,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const handleLogout = async () => {
     await logout()
     navigate('/', { replace: true })
-    window.location.reload()
   }
 
-  const avatarDisplay = useMemo(() => {
-    const avatar = user?.avatar || localStorage.getItem('user_avatar') || undefined
-    return getAvatarDisplayUrl(avatar)
-  }, [user?.avatar])
+
 
   return (
     <div className="min-h-screen bg-background-secondary flex flex-col">
@@ -148,18 +144,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                   onClick={() => setUserMenuOpen(!userMenuOpen)}
                   className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-foreground-muted hover:text-foreground hover:bg-gray-100 dark:hover:bg-slate-800 transition-all"
                 >
-                  <img
-                    src={avatarDisplay}
-                    alt="avatar"
-                    className="w-8 h-8 rounded-full bg-gray-100 dark:bg-slate-700"
-                    onError={(e) => {
-                      const target = e.currentTarget;
-                      target.onerror = null;
-                      target.src = '/User/default.svg';
-                    }}
-                  />
+                  <Avatar avatar={user?.avatar || localStorage.getItem('user_avatar') || undefined} size={32} className="bg-gray-100 dark:bg-slate-700" />
                   <span className="hidden sm:inline max-w-[100px] truncate">
-                    {user?.username}
+                    {user?.accountname || user?.username}
                   </span>
                 </button>
 
@@ -167,7 +154,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 {userMenuOpen && (
                   <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-slate-800 rounded-xl shadow-lg border border-gray-100 dark:border-slate-700 py-1 z-50 animate-fade-in">
                       <div className="px-4 py-2 border-b border-gray-100 dark:border-slate-700">
-                        <p className="text-sm font-medium text-foreground dark:text-foreground-dark">{user?.username}</p>
+                        <p className="text-sm font-medium text-foreground dark:text-foreground-dark">{user?.accountname || user?.username}</p>
                         <p className="text-xs text-foreground-subtle dark:text-foreground-dark-subtle truncate">{user?.email}</p>
                       </div>
                       <button

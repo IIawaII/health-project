@@ -1,11 +1,12 @@
-/**
- * 统一的大语言模型调用层
- * 封装与 OpenAI 兼容 API 的通信，支持流式和非流式请求
- */
-
 import { parseLLMResult } from './response'
+import { getLogger } from './logger'
+import { getCache } from './cacheManager'
+import { getAiConfig } from '../dao/ai-config.dao'
 
 import type { Env } from './env'
+import type { TokenData } from './auth'
+
+const logger = getLogger('LLM')
 
 export interface CallLLMOptions {
   baseUrl: string
@@ -15,23 +16,87 @@ export interface CallLLMOptions {
   stream?: boolean
   temperature?: number
   max_tokens?: number
+  ssrfCache?: KVNamespace
 }
 
-/**
- * 从请求头中解析用户自定义 LLM 配置
- * 本项目设计为用户自带 API Key，服务端不再提供默认 Key
- * 所有 AI 调用必须通过用户自己的 API 配置完成
- */
-export function resolveLLMConfig(
-  request: Request,
-  _env: Env
-): { baseUrl: string; apiKey: string; model: string } | null {
-  const userBaseUrl = request.headers.get('X-AI-Base-URL')
-  const userApiKey = request.headers.get('X-AI-API-Key')
-  const userModel = request.headers.get('X-AI-Model')
+function hexToBytes(hex: string): Uint8Array {
+  const pairs = hex.match(/.{2}/g)
+  if (!pairs) throw new Error('Invalid hex string')
+  return new Uint8Array(pairs.map((b) => parseInt(b, 16)))
+}
 
-  if (!userBaseUrl || !userApiKey || !userModel) return null
-  return { baseUrl: userBaseUrl, apiKey: userApiKey, model: userModel }
+function base64ToBytes(base64: string): Uint8Array {
+  const binary = atob(base64)
+  const bytes = new Uint8Array(binary.length)
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i)
+  }
+  return bytes
+}
+
+async function decryptAiConfig(encryptedBase64: string, dataKeyHex: string): Promise<{ baseUrl: string; apiKey: string; model: string } | null> {
+  try {
+    const keyData = hexToBytes(dataKeyHex)
+    const cryptoKey = await crypto.subtle.importKey(
+      'raw',
+      keyData.buffer as ArrayBuffer,
+      { name: 'AES-GCM', length: 256 },
+      false,
+      ['decrypt']
+    )
+
+    const combined = base64ToBytes(encryptedBase64)
+    const iv = combined.slice(0, 12)
+    const ciphertext = combined.slice(12)
+
+    const plaintext = await crypto.subtle.decrypt(
+      { name: 'AES-GCM', iv },
+      cryptoKey,
+      ciphertext
+    )
+
+    const decoder = new TextDecoder()
+    const json = JSON.parse(decoder.decode(plaintext)) as { baseUrl?: string; apiKey?: string; model?: string }
+    if (!json.baseUrl || !json.apiKey || !json.model) return null
+    return { baseUrl: json.baseUrl, apiKey: json.apiKey, model: json.model }
+  } catch (err) {
+    logger.warn('Failed to decrypt AI config', { error: err instanceof Error ? err.message : String(err) })
+    return null
+  }
+}
+
+const aiConfigCache = getCache<{ baseUrl: string; apiKey: string; model: string }>('aiConfig', { ttlMs: 60_000, maxSize: 200 })
+
+export async function resolveLLMConfig(
+  _request: Request,
+  env: Env,
+  tokenData: TokenData
+): Promise<{ baseUrl: string; apiKey: string; model: string } | null> {
+  if (!tokenData.dataKey) {
+    logger.warn('User has no dataKey, cannot resolve AI config', { userId: tokenData.userId })
+    return null
+  }
+
+  const cacheKey = `${tokenData.userId}`
+  const cached = aiConfigCache.get(cacheKey)
+  if (cached) return cached
+
+  const config = await getAiConfig(env.DB, tokenData.userId)
+  if (!config) return null
+
+  const decrypted = await decryptAiConfig(config.encrypted_config, tokenData.dataKey)
+  if (!decrypted) return null
+
+  aiConfigCache.set(cacheKey, decrypted)
+  return decrypted
+}
+
+export function invalidateAiConfigCache(userId?: string): void {
+  if (userId) {
+    aiConfigCache.delete(userId)
+  } else {
+    aiConfigCache.clear()
+  }
 }
 
 function isIPv4Address(value: string): boolean {
@@ -44,18 +109,10 @@ function isIPv4Address(value: string): boolean {
   )
 }
 
-/**
- * 严格校验 IPv6 地址格式
- * 支持标准全写、压缩形式（::）及 IPv4 映射地址（::ffff:x.x.x.x）
- */
 export function isIPv6Address(value: string): boolean {
-  // IPv4 映射地址：::ffff:x.x.x.x
   if (/^::ffff:\d+\.\d+\.\d+\.\d+$/i.test(value)) return true
-
-  // 特殊全零压缩形式
   if (value === '::') return true
 
-  // 确保最多只有一个 :: 压缩
   const segments = value.split('::')
   if (segments.length > 2) return false
 
@@ -72,11 +129,9 @@ export function isIPv6Address(value: string): boolean {
   }
 
   if (hasDoubleColon) {
-    // :: 压缩时，非空组数必须在 1~7 之间（至少压缩了一组）
     return nonEmptyParts.length > 0 && nonEmptyParts.length <= 7
   }
 
-  // 无压缩时，必须有恰好 8 组
   return nonEmptyParts.length === 8
 }
 
@@ -111,28 +166,21 @@ function isDisallowedIPv6(value: string): boolean {
   if (lower.startsWith('ff')) return true
   if (lower.startsWith('2001:db8')) return true
 
-  // 检查环回地址的多种 IPv6 表示形式
-  // ::1 已在上文处理，此处处理 0:0:0:0:0:0:0:1 的变体
   if (/^0{1,4}(:0{1,4}){0,6}:0{0,3}1$/.test(lower)) return true
 
   return false
 }
 
-/**
- * 综合校验 IPv6 地址（含 IPv4 映射/兼容地址的递归检查）
- */
 function isDisallowedIPv6Comprehensive(value: string): boolean {
   if (isDisallowedIPv6(value)) return true
 
   const lower = value.toLowerCase()
 
-  // 检查 IPv4 映射地址 ::ffff:x.x.x.x
   const mappedIpv4Match = lower.match(/::ffff:(\d+\.\d+\.\d+\.\d+)$/)
   if (mappedIpv4Match) {
     return isDisallowedIPv4(mappedIpv4Match[1])
   }
 
-  // 检查 IPv4 兼容地址 ::x.x.x.x（已废弃但仍可能被滥用）
   const compatIpv4Match = lower.match(/::(\d+\.\d+\.\d+\.\d+)$/)
   if (compatIpv4Match && !lower.includes('::ffff:')) {
     return isDisallowedIPv4(compatIpv4Match[1])
@@ -141,33 +189,61 @@ function isDisallowedIPv6Comprehensive(value: string): boolean {
   return false
 }
 
-async function queryDnsRecords(hostname: string, type: 'A' | 'AAAA'): Promise<string[]> {
-  const dohResponse = await fetch(
-    `https://cloudflare-dns.com/dns-query?name=${encodeURIComponent(hostname)}&type=${type}`,
-    {
-      headers: { Accept: 'application/dns-json' },
-    }
-  )
+const DNS_QUERY_TIMEOUT_MS = 5000
 
-  if (!dohResponse.ok) {
-    throw new Error(`DNS 查询失败: ${type}`)
+const DOH_PROVIDERS = [
+  {
+    name: 'cloudflare',
+    buildUrl: (hostname: string, type: string) =>
+      `https://cloudflare-dns.com/dns-query?name=${encodeURIComponent(hostname)}&type=${type}`,
+  },
+  {
+    name: 'google',
+    buildUrl: (hostname: string, type: string) =>
+      `https://dns.google/resolve?name=${encodeURIComponent(hostname)}&type=${type}`,
+  },
+]
+
+async function queryDnsRecords(hostname: string, type: 'A' | 'AAAA'): Promise<string[]> {
+  for (const provider of DOH_PROVIDERS) {
+    try {
+      const controller = new AbortController()
+      const timer = setTimeout(() => controller.abort(), DNS_QUERY_TIMEOUT_MS)
+
+      let dohResponse: Response
+      try {
+        dohResponse = await fetch(provider.buildUrl(hostname, type), {
+          headers: { Accept: 'application/dns-json' },
+          signal: controller.signal,
+        })
+      } finally {
+        clearTimeout(timer)
+      }
+
+      if (!dohResponse.ok) {
+        logger.debug('DNS query failed with provider, trying next', { provider: provider.name, type, status: dohResponse.status })
+        continue
+      }
+
+      const dohData = (await dohResponse.json()) as { Answer?: Array<{ data: string }> }
+      const answers = dohData.Answer ?? []
+      const records = answers
+        .map((answer) => answer.data)
+        .filter((value) => (type === 'A' ? isIPv4Address(value) : isIPv6Address(value)))
+
+      if (records.length > 0) {
+        return records
+      }
+    } catch (err) {
+      logger.debug('DNS provider error, trying next', { provider: provider.name, type, error: err instanceof Error ? err.message : String(err) })
+      continue
+    }
   }
 
-  const dohData = (await dohResponse.json()) as { Answer?: Array<{ data: string }> }
-  const answers = dohData.Answer ?? []
-
-  return answers
-    .map((answer) => answer.data)
-    .filter((value) => (type === 'A' ? isIPv4Address(value) : isIPv6Address(value)))
+  return []
 }
 
-/**
- * 校验 AI Base URL 是否合法，防止 SSRF
- * - 仅允许 http/https 协议
- * - 禁止 localhost、回环地址、私有 IP 段
- * - 通过 Cloudflare DoH 解析域名并验证解析结果
- */
-async function validateLLMUrl(url: string): Promise<boolean> {
+function isBasicUrlValid(url: string): boolean {
   try {
     const parsed = new URL(url)
     if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return false
@@ -184,78 +260,103 @@ async function validateLLMUrl(url: string): Promise<boolean> {
       return !isDisallowedIPv6Comprehensive(hostname)
     }
 
-    const [aRecords, aaaaRecords] = await Promise.all([
-      queryDnsRecords(hostname, 'A'),
-      queryDnsRecords(hostname, 'AAAA'),
-    ])
-
-    const resolvedIps = [...aRecords, ...aaaaRecords]
-    if (resolvedIps.length === 0) {
-      return false
-    }
-
-    for (const ip of resolvedIps) {
-      if (isIPv4Address(ip)) {
-        if (isDisallowedIPv4(ip)) return false
-        continue
-      }
-
-      if (ip.includes(':')) {
-        if (isDisallowedIPv6Comprehensive(ip)) return false
-        continue
-      }
-
-      return false
-    }
-
     return true
   } catch {
     return false
   }
 }
 
-/**
- * URL 验证结果缓存。
- * 注意：在 Cloudflare Workers 中，模块级变量在 isolate 复用期间跨请求共享。
- * 该缓存设置了 TTL 和最大条目数限制，既利用了复用性能，又避免了内存无限增长。
- */
-const urlValidationCache = new Map<string, { valid: boolean; expiry: number }>()
-const URL_VALIDATION_CACHE_TTL = 60 * 1000 // 1 分钟：缩短 TTL 以降低 DNS 重绑定攻击的理论窗口
-const URL_VALIDATION_CACHE_MAX_SIZE = 100 // 最大缓存条目数，防止恶意构造大量 URL 撑爆内存
+async function validateLLMUrl(url: string): Promise<boolean> {
+  try {
+    const parsed = new URL(url)
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+      logger.warn('SSRF: invalid protocol', { url, protocol: parsed.protocol })
+      return false
+    }
 
-function setUrlValidationCache(url: string, valid: boolean): void {
-  // 如果超过上限，先清理已过期条目；若仍超限，淘汰最早的条目
-  if (urlValidationCache.size >= URL_VALIDATION_CACHE_MAX_SIZE) {
-    const now = Date.now()
-    for (const [key, val] of urlValidationCache) {
-      if (val.expiry <= now) {
-        urlValidationCache.delete(key)
-      }
+    const hostname = parsed.hostname
+    if (!hostname) {
+      logger.warn('SSRF: empty hostname', { url })
+      return false
     }
-    if (urlValidationCache.size >= URL_VALIDATION_CACHE_MAX_SIZE) {
-      const firstKey = urlValidationCache.keys().next().value
-      if (firstKey !== undefined) {
-        urlValidationCache.delete(firstKey)
-      }
+    if (hostname === 'localhost' || hostname.endsWith('.local')) {
+      logger.warn('SSRF: localhost/local hostname', { url, hostname })
+      return false
     }
+
+    if (isIPv4Address(hostname)) {
+      const disallowed = isDisallowedIPv4(hostname)
+      if (disallowed) logger.warn('SSRF: disallowed IPv4', { url, hostname })
+      return !disallowed
+    }
+
+    if (hostname.includes(':')) {
+      const disallowed = isDisallowedIPv6Comprehensive(hostname)
+      if (disallowed) logger.warn('SSRF: disallowed IPv6', { url, hostname })
+      return !disallowed
+    }
+
+    let aRecords: string[] = []
+    let aaaaRecords: string[] = []
+    try {
+      [aRecords, aaaaRecords] = await Promise.all([
+        queryDnsRecords(hostname, 'A'),
+        queryDnsRecords(hostname, 'AAAA'),
+      ])
+    } catch (dnsError) {
+      logger.warn('SSRF: DNS resolution failed, falling back to basic URL validation', { url, hostname, error: dnsError instanceof Error ? dnsError.message : String(dnsError) })
+      return isBasicUrlValid(url)
+    }
+
+    const resolvedIps = [...aRecords, ...aaaaRecords]
+    if (resolvedIps.length === 0) {
+      logger.info('SSRF: no DNS records resolved, falling back to basic URL validation', { url, hostname })
+      return isBasicUrlValid(url)
+    }
+
+    logger.debug('SSRF: DNS resolved', { hostname, ips: resolvedIps })
+
+    for (const ip of resolvedIps) {
+      if (isIPv4Address(ip)) {
+        if (isDisallowedIPv4(ip)) {
+          logger.warn('SSRF: resolved to disallowed IPv4', { url, hostname, ip })
+          return false
+        }
+        continue
+      }
+
+      if (ip.includes(':')) {
+        if (isDisallowedIPv6Comprehensive(ip)) {
+          logger.warn('SSRF: resolved to disallowed IPv6', { url, hostname, ip })
+          return false
+        }
+        continue
+      }
+
+      logger.warn('SSRF: unrecognizable resolved IP', { url, hostname, ip })
+      return false
+    }
+
+    return true
+  } catch (parseError) {
+    logger.warn('SSRF: URL parse error', { url, error: parseError instanceof Error ? parseError.message : String(parseError) })
+    return false
   }
-  urlValidationCache.set(url, { valid, expiry: Date.now() + URL_VALIDATION_CACHE_TTL })
 }
+
+const urlValidationCache = getCache<boolean>('ssrfUrl', { ttlMs: 60 * 1000, maxSize: 100 })
 
 async function isValidLLMUrl(url: string): Promise<boolean> {
   const cached = urlValidationCache.get(url)
-  if (cached && cached.expiry > Date.now()) {
-    return cached.valid
+  if (cached !== undefined) {
+    return cached
   }
 
   const result = await validateLLMUrl(url)
-  setUrlValidationCache(url, result)
+  urlValidationCache.set(url, result)
   return result
 }
 
-/**
- * 带 SSRF 防护的 fetch：禁止自动重定向，手动校验重定向目标
- */
 async function fetchWithSSRFProtection(
   url: string,
   init: RequestInit,
@@ -292,51 +393,123 @@ async function fetchWithSSRFProtection(
   return new Response(JSON.stringify({ error: '重定向次数过多' }), { status: 502 })
 }
 
-/**
- * 统一调用 AI API，返回原始 Response（支持流式）
- */
-export async function callLLM(options: CallLLMOptions): Promise<Response> {
-  const { baseUrl, apiKey, model, messages, stream = false, temperature = 0.7, max_tokens = 3000 } = options
+function normalizeBaseUrl(url: string): string {
+  let normalized = url.trim()
 
-  if (!(await isValidLLMUrl(baseUrl))) {
-    return new Response(JSON.stringify({ error: '非法的 AI API 地址' }), { status: 400 })
+  if (normalized.endsWith('/chat/completions')) {
+    normalized = normalized.slice(0, -'/chat/completions'.length)
   }
 
-  return await fetchWithSSRFProtection(`${baseUrl}/chat/completions`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      model,
-      messages,
-      temperature,
-      max_tokens,
-      stream,
-    }),
-  })
+  while (normalized.endsWith('/')) {
+    normalized = normalized.slice(0, -1)
+  }
+
+  return normalized
 }
 
-/**
- * 非流式调用，返回解析后的文本内容
- * 失败时抛出异常
- */
+const LLM_REQUEST_TIMEOUT_MS = 60_000
+const LLM_RETRY_COUNT = 2
+const LLM_RETRY_DELAY_MS = 1000
+
+function isRetryableStatus(status: number): boolean {
+  return status === 429 || status === 500 || status === 502 || status === 503 || status === 504
+}
+
+export async function callLLM(options: CallLLMOptions): Promise<Response> {
+  const { baseUrl: rawBaseUrl, apiKey, model, messages, stream = false, temperature = 0.7, max_tokens = 3000, ssrfCache } = options
+
+  const baseUrl = normalizeBaseUrl(rawBaseUrl)
+
+  if (ssrfCache) {
+    const preValidated = await isUrlPreValidated(ssrfCache, baseUrl)
+    if (!preValidated && !(await isValidLLMUrl(baseUrl))) {
+      logger.warn('AI API URL rejected by SSRF validation', { baseUrl })
+      return new Response(JSON.stringify({ error: 'AI API 地址不合法，请检查配置的 API 地址是否为公网可访问的 HTTPS 地址' }), { status: 400 })
+    }
+  } else {
+    if (!(await isValidLLMUrl(baseUrl))) {
+      logger.warn('AI API URL rejected by SSRF validation', { baseUrl })
+      return new Response(JSON.stringify({ error: 'AI API 地址不合法，请检查配置的 API 地址是否为公网可访问的 HTTPS 地址' }), { status: 400 })
+    }
+  }
+
+  const endpoint = `${baseUrl}/chat/completions`
+  logger.info('Calling LLM', { endpoint, model, stream })
+
+  const requestBody = JSON.stringify({
+    model,
+    messages,
+    temperature,
+    max_tokens,
+    stream,
+  })
+
+  let lastResponse: Response | null = null
+
+  for (let attempt = 0; attempt <= LLM_RETRY_COUNT; attempt++) {
+    if (attempt > 0) {
+      logger.info('Retrying LLM request', { endpoint, model, attempt })
+      await new Promise((resolve) => setTimeout(resolve, LLM_RETRY_DELAY_MS * attempt))
+    }
+
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), LLM_REQUEST_TIMEOUT_MS)
+
+    try {
+      lastResponse = await fetchWithSSRFProtection(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: requestBody,
+        signal: controller.signal,
+      })
+    } catch (fetchErr) {
+      logger.warn('LLM fetch error', { endpoint, attempt, error: fetchErr instanceof Error ? fetchErr.message : String(fetchErr) })
+      if (attempt < LLM_RETRY_COUNT) continue
+      return new Response(JSON.stringify({ error: 'AI 服务连接失败，请检查网络或 API 地址是否正确' }), { status: 502 })
+    } finally {
+      clearTimeout(timer)
+    }
+
+    if (!lastResponse.ok && isRetryableStatus(lastResponse.status) && attempt < LLM_RETRY_COUNT) {
+      const retryAfter = lastResponse.headers.get('Retry-After')
+      if (retryAfter) {
+        const delay = Math.min(parseInt(retryAfter, 10) * 1000, 10_000)
+        await new Promise((resolve) => setTimeout(resolve, delay))
+      }
+      logger.info('LLM returned retryable status, will retry', { endpoint, status: lastResponse.status, attempt })
+      continue
+    }
+
+    break
+  }
+
+  return lastResponse!
+}
+
 export async function callLLMText(options: CallLLMOptions): Promise<string> {
   const response = await callLLM({ ...options, stream: false })
 
   if (!response.ok) {
-    const err = await response.text()
-    throw new Error(`模型请求失败: ${err}`)
+    let errDetail = ''
+    try {
+      errDetail = await response.text()
+    } catch { logger.debug('Failed to read error response body from LLM') }
+    const statusText = response.status === 401 ? 'API Key 无效或未授权'
+      : response.status === 403 ? 'API 访问被拒绝'
+      : response.status === 404 ? 'API 端点不存在，请检查 Base URL 配置'
+      : response.status === 429 ? 'API 请求频率超限，请稍后重试'
+      : response.status >= 500 ? 'AI 服务端错误，请稍后重试'
+      : `请求失败 (HTTP ${response.status})`
+    throw new Error(`${statusText}${errDetail ? `: ${errDetail.slice(0, 200)}` : ''}`)
   }
 
   const data = await response.json()
   return parseLLMResult(data)
 }
 
-/**
- * 构建流式 SSE Response
- */
 export function createStreamResponse(response: Response): Response {
   return new Response(response.body, {
     headers: {
@@ -346,3 +519,51 @@ export function createStreamResponse(response: Response): Response {
     },
   })
 }
+
+const SSRF_KV_PREFIX = 'ssrf_validated:'
+const SSRF_KV_TTL = 600
+
+export async function preValidateAndCacheUrl(
+  kv: KVNamespace,
+  url: string
+): Promise<{ valid: boolean; reason?: string }> {
+  const normalized = normalizeBaseUrl(url)
+
+  if (!isBasicUrlValid(normalized)) {
+    return { valid: false, reason: 'URL 格式不合法或指向私有地址' }
+  }
+
+  const isValid = await validateLLMUrl(normalized)
+
+  if (isValid) {
+    try {
+      await kv.put(`${SSRF_KV_PREFIX}${normalized}`, JSON.stringify({ valid: true, validatedAt: Date.now() }), {
+        expirationTtl: SSRF_KV_TTL,
+      })
+    } catch (err) {
+      logger.warn('Failed to cache SSRF validation result in KV', { error: err instanceof Error ? err.message : String(err) })
+    }
+  }
+
+  return { valid: isValid, reason: isValid ? undefined : 'URL 解析到私有 IP 地址或域名无法解析' }
+}
+
+export async function isUrlPreValidated(
+  kv: KVNamespace,
+  url: string
+): Promise<boolean> {
+  const normalized = normalizeBaseUrl(url)
+  try {
+    const cached = await kv.get(`${SSRF_KV_PREFIX}${normalized}`)
+    if (cached) {
+      const data = JSON.parse(cached) as { valid: boolean; validatedAt: number }
+      if (data.valid && Date.now() - data.validatedAt < SSRF_KV_TTL * 1000) {
+        return true
+      }
+    }
+  } catch (_e) { /* ignore DNS resolution errors */ }
+
+  return false
+}
+
+export { validateLLMUrl, isBasicUrlValid, normalizeBaseUrl }

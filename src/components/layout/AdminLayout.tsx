@@ -1,9 +1,9 @@
-import { useState, useMemo } from 'react'
-import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { useState } from 'react'
+import { Link, useLocation, useNavigate, Outlet } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '@/contexts/AuthContext'
 import { useTheme } from '@/hooks/useTheme'
-import { getAvatarDisplayUrl } from '@/utils/avatar'
+import Avatar from '../common/Avatar'
 import {
   FiHome,
   FiUsers,
@@ -15,6 +15,7 @@ import {
   FiChevronsRight,
   FiMoon,
   FiSun,
+  FiHardDrive,
 } from 'react-icons/fi'
 import { MdAdminPanelSettings } from "react-icons/md";
 import LanguageSwitcher from '../common/LanguageSwitcher'
@@ -24,10 +25,11 @@ const navItems = [
   { path: '/admin', labelKey: 'admin.dashboard', icon: FiHome },
   { path: '/admin/users', labelKey: 'admin.users', icon: FiUsers },
   { path: '/admin/data', labelKey: 'admin.data', icon: FiDatabase },
+  { path: '/admin/backups', labelKey: 'admin.backups', icon: FiHardDrive },
   { path: '/admin/config', labelKey: 'admin.config', icon: FiSettings },
 ]
 
-export default function AdminLayout({ children }: { children: React.ReactNode }) {
+export default function AdminLayout() {
   const location = useLocation()
   const navigate = useNavigate()
   const { t } = useTranslation()
@@ -36,15 +38,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [collapsed, setCollapsed] = useState(false)
 
-  const avatarDisplay = useMemo(() => {
-    const avatar = user?.avatar || localStorage.getItem('user_avatar') || undefined
-    return getAvatarDisplayUrl(avatar)
-  }, [user?.avatar])
-
   const handleLogout = async () => {
     await logout()
     navigate('/', { replace: true })
-    window.location.reload()
   }
 
   const isActive = (path: string) => {
@@ -55,8 +51,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 flex">
-      {/* Mobile overlay */}
+    <div className="h-screen bg-slate-50 flex overflow-hidden">
       {sidebarOpen && (
         <div
           className="fixed inset-0 bg-black/50 z-40 lg:hidden"
@@ -64,28 +59,27 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         />
       )}
 
-      {/* Sidebar */}
       <aside
-        className={`fixed lg:static inset-y-0 left-0 z-50 bg-slate-900 text-white flex flex-col transition-all duration-300 lg:translate-x-0 ${
+        className={`fixed lg:static inset-y-0 left-0 z-50 bg-slate-900 dark:bg-slate-950 text-white flex flex-col transition-all duration-300 overflow-hidden lg:translate-x-0 ${
           sidebarOpen ? 'translate-x-0' : '-translate-x-full'
-        } ${collapsed ? 'w-16' : 'w-64'}`}
+        } w-64 h-screen lg:h-full ${collapsed ? 'lg:w-16' : ''}`}
       >
-        {/* Brand */}
         <div
-          className={`h-16 flex items-center gap-3 border-b border-slate-800 ${
-            collapsed ? 'justify-center px-2' : 'px-6'
+          className={`h-16 flex items-center gap-3 px-6 border-b border-slate-800 dark:border-slate-800 ${
+            collapsed ? 'lg:gap-0 lg:justify-center lg:px-2' : ''
           }`}
         >
           <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-teal-400 to-teal-600 flex items-center justify-center flex-shrink-0">
             <MdAdminPanelSettings className="w-4 h-4 text-white" />
           </div>
-          <span className={`overflow-hidden whitespace-nowrap text-lg font-semibold tracking-tight transition-all duration-300 ${collapsed ? 'opacity-0 w-0' : 'opacity-100 w-auto'}`}>
+          <span className={`overflow-hidden whitespace-nowrap text-lg font-semibold tracking-tight transition-all duration-300 opacity-100 w-auto ${
+            collapsed ? 'lg:opacity-0 lg:w-0' : ''
+          }`}>
             {t('admin.title')}
           </span>
         </div>
 
-        {/* Navigation */}
-        <nav className={`flex-1 py-4 space-y-1 ${collapsed ? 'px-2' : 'px-3'}`}>
+        <nav className={`flex-1 min-h-0 overflow-y-auto py-4 space-y-1 px-3 ${collapsed ? 'lg:px-2' : ''}`}>
           {navItems.map((item) => {
             const Icon = item.icon
             const active = isActive(item.path)
@@ -96,14 +90,16 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 to={item.path}
                 onClick={() => setSidebarOpen(false)}
                 title={collapsed ? label : undefined}
-                className={`flex items-center rounded-lg text-sm font-medium transition-all ${
+                className={`flex items-center gap-3 rounded-lg text-sm font-medium transition-all px-3 py-2.5 ${
                   active
                     ? 'bg-teal-600 text-white'
-                    : 'text-slate-400 hover:text-white hover:bg-slate-800'
-                } ${collapsed ? 'justify-center px-2 py-2.5' : 'gap-3 px-3 py-2.5'}`}
+                    : 'text-slate-400 hover:text-white hover:bg-slate-800 dark:hover:bg-slate-900'
+                } ${collapsed ? 'lg:gap-0 lg:justify-center lg:px-2' : ''}`}
               >
                 <Icon className="w-4 h-4 flex-shrink-0" />
-                <span className={`overflow-hidden whitespace-nowrap transition-all duration-300 ${collapsed ? 'opacity-0 w-0' : 'opacity-100 w-auto'}`}>
+                <span className={`overflow-hidden whitespace-nowrap transition-all duration-300 opacity-100 w-auto ${
+                  collapsed ? 'lg:opacity-0 lg:w-0' : ''
+                }`}>
                   {label}
                 </span>
               </Link>
@@ -111,53 +107,51 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           })}
         </nav>
 
-        {/* Collapse toggle (desktop only) */}
-        <div className="hidden lg:block px-3 pb-2">
+        <div className={`hidden lg:block shrink-0 pb-2 ${collapsed ? 'px-2' : 'px-3'}`}>
           <button
             onClick={() => setCollapsed(!collapsed)}
             title={collapsed ? t('admin.collapseExpand') : t('admin.collapseCollapse')}
-            className={`flex items-center rounded-lg text-xs text-slate-500 hover:text-white hover:bg-slate-800 transition-colors ${
-              collapsed ? 'justify-center w-full px-2 py-2' : 'gap-2 px-3 py-2 w-full'
+            className={`flex items-center gap-2 rounded-lg text-xs text-slate-500 hover:text-white hover:bg-slate-800 dark:hover:bg-slate-900 transition-colors px-3 py-2 w-full ${
+              collapsed ? 'lg:gap-0 lg:justify-center lg:px-2' : ''
             }`}
           >
             {collapsed ? <FiChevronsRight className="w-4 h-4" /> : <FiChevronsLeft className="w-4 h-4" />}
-            <span className={`overflow-hidden whitespace-nowrap transition-all duration-300 ${collapsed ? 'opacity-0 w-0' : 'opacity-100 w-auto'}`}>
+            <span className={`overflow-hidden whitespace-nowrap transition-all duration-300 opacity-100 w-auto ${
+              collapsed ? 'lg:opacity-0 lg:w-0' : ''
+            }`}>
               {t('admin.collapse')}
             </span>
           </button>
         </div>
 
-        {/* Bottom info */}
-        <div className={`p-4 border-t border-slate-800 ${collapsed ? 'flex flex-col items-center' : ''}`}>
-          <div className={`flex items-center gap-3 mb-3 ${collapsed ? 'justify-center' : ''}`}>
-            <img
-              src={avatarDisplay}
-              alt="avatar"
-              className="w-8 h-8 rounded-full bg-gray-100 object-cover"
-            />
-            <div className={`flex-1 min-w-0 overflow-hidden transition-all duration-300 ${collapsed ? 'opacity-0 w-0' : 'opacity-100 w-auto'}`}>
-              <p className="text-sm font-medium text-white truncate">{user?.username}</p>
+        <div className={`shrink-0 p-4 border-t border-slate-800 dark:border-slate-800 ${collapsed ? 'lg:flex lg:flex-col lg:items-center lg:p-2' : ''}`}>
+          <div className={`flex items-center gap-3 mb-3 ${collapsed ? 'lg:gap-0 lg:justify-center' : ''}`}>
+            <Avatar avatar={user?.avatar || localStorage.getItem('user_avatar') || undefined} size={32} className="bg-gray-100 object-cover" />
+            <div className={`flex-1 min-w-0 overflow-hidden transition-all duration-300 opacity-100 w-auto ${
+              collapsed ? 'lg:opacity-0 lg:w-0' : ''
+            }`}>
+              <p className="text-sm font-medium text-white truncate">{user?.accountname || user?.username}</p>
               <p className="text-xs text-slate-500">{user?.email}</p>
             </div>
           </div>
           <button
             onClick={handleLogout}
             title={collapsed ? t('nav.logout') : undefined}
-            className={`flex items-center rounded-lg text-sm text-red-400 hover:bg-slate-800 transition-colors ${
-              collapsed ? 'justify-center w-full px-2 py-2' : 'gap-2 px-3 py-2 w-full'
+            className={`flex items-center gap-2 rounded-lg text-sm text-red-400 hover:bg-slate-800 dark:hover:bg-slate-900 transition-colors px-3 py-2 w-full ${
+              collapsed ? 'lg:gap-0 lg:justify-center lg:px-2' : ''
             }`}
           >
             <FiLogOut className="w-4 h-4" />
-            <span className={`overflow-hidden whitespace-nowrap transition-all duration-300 ${collapsed ? 'opacity-0 w-0' : 'opacity-100 w-auto'}`}>
+            <span className={`overflow-hidden whitespace-nowrap transition-all duration-300 opacity-100 w-auto ${
+              collapsed ? 'lg:opacity-0 lg:w-0' : ''
+            }`}>
               {t('nav.logout')}
             </span>
           </button>
         </div>
       </aside>
 
-      {/* Main content */}
       <div className="flex-1 flex flex-col min-w-0">
-        {/* Top bar */}
         <header className="h-16 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between px-4 lg:px-8 transition-colors">
           <div className="flex items-center gap-4">
             <button
@@ -185,9 +179,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           </div>
         </header>
 
-        {/* Page content */}
         <main className="flex-1 p-4 lg:p-8 overflow-auto bg-slate-50 dark:bg-slate-900 transition-colors">
-          {children}
+          <Outlet />
         </main>
       </div>
     </div>

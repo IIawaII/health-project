@@ -1,17 +1,21 @@
-/**
- * 统一响应处理工具
- * 提供标准化的 JSON 响应和错误响应构建函数
- * CORS 头由 worker.ts 全局统一注入，handler 中无需重复设置
- */
-
 import { getLogger } from './logger'
+import { isAppError, toErrorResponse } from './errors'
+import { t } from '../../shared/i18n/server'
 
 const logger = getLogger('Response')
 
-export function jsonResponse<T>(data: T, status = 200, extraHeaders?: Record<string, string>): Response {
+export function jsonResponse<T>(data: T, status = 200, extraHeaders?: Record<string, string>, appendHeaders?: string[]): Response {
   const headers = new Headers({ 'Content-Type': 'application/json' })
   if (extraHeaders) {
     Object.entries(extraHeaders).forEach(([key, value]) => headers.set(key, value))
+  }
+  if (appendHeaders) {
+    for (const h of appendHeaders) {
+      const idx = h.indexOf(':')
+      if (idx > 0) {
+        headers.append(h.slice(0, idx).trim(), h.slice(idx + 1).trim())
+      }
+    }
   }
   return new Response(JSON.stringify(data), {
     status,
@@ -26,13 +30,13 @@ export function errorResponse(error: string, status = 500, extraHeaders?: Record
   })
 }
 
-/**
- * 安全的错误响应：生产环境隐藏内部异常细节，仅记录服务端日志
- */
 export function safeErrorResponse(err: unknown): Response {
+  if (isAppError(err)) {
+    return toErrorResponse(err)
+  }
   const msg = err instanceof Error ? err.message : String(err)
   logger.error('Server error', { error: msg })
-  return errorResponse('服务器内部错误，请稍后重试', 500)
+  return errorResponse(t('common.internalError', '服务器内部错误，请稍后重试'), 500)
 }
 
 export function parseLLMResult(data: unknown): string {

@@ -49,9 +49,11 @@
   "admin": {
     "title": "Admin Panel",
     "dashboard": "Dashboard",
+    "dashboardSubtitle": "System Overview & Statistics",
     "users": "User Management",
     "data": "Data Management",
     "config": "System Config",
+    "backups": "Backup Management",
     "collapse": "Collapse",
     "collapseExpand": "Expand sidebar",
     "collapseCollapse": "Collapse sidebar",
@@ -65,14 +67,46 @@
       "edit": "Edit Role",
       "delete": "Delete",
       "confirm": "Confirm",
-      "cancel": "Cancel"
+      "cancel": "Cancel",
+      "noPermission": "No Permission"
     },
     "errors": {
       "fetchStatsFailed": "Failed to fetch statistics",
       "fetchUsersFailed": "Failed to fetch user list",
       "fetchLogsFailed": "Failed to fetch logs",
       "fetchAuditLogsFailed": "Failed to fetch audit logs",
-      "fetchConfigFailed": "Failed to fetch config"
+      "fetchConfigFailed": "Failed to fetch config",
+      "clearLogsFailed": "Failed to clear usage logs",
+      "clearAuditLogsFailed": "Failed to clear audit logs",
+      "missingUserId": "Missing user ID",
+      "userNotFound": "User not found",
+      "cannotDegradeSelf": "System admin cannot downgrade their own role, which would result in losing admin access with no way to recover",
+      "cannotDegradeSystemAdmin": "Cannot downgrade system admin role",
+      "onlySystemAdminCanModify": "Only system admin can modify system admin account permissions",
+      "onlySystemAdminCanRevoke": "Only system admin can revoke admin privileges from other admins",
+      "onlySystemAdminCanGrant": "Only system admin can grant admin privileges",
+      "updateUserFailed": "Failed to update user",
+      "cannotDeleteSelf": "Cannot delete your own admin account",
+      "cannotDeleteSystemAdmin": "Cannot delete system admin account",
+      "onlySystemAdminCanDeleteAdmin": "Only system admin can delete admin accounts",
+      "deleteUserFailed": "Failed to delete user",
+      "disallowedConfigKeys": "Disallowed config keys: {{keys}}",
+      "configMustBeNumber": "{{key}} must be a number",
+      "configMustBeInteger": "{{key}} must be an integer",
+      "configOutOfRange": "{{key}} value must be between {{min}} and {{max}}",
+      "updateConfigFailed": "Failed to update config",
+      "unauthorized": "Unauthorized, please log in first",
+      "insufficientPermissions": "Insufficient permissions, admin role required",
+      "fetchMetricsOverviewFailed": "Failed to fetch metrics overview",
+      "fetchRequestTrendFailed": "Failed to fetch request trend",
+      "fetchPathStatsFailed": "Failed to fetch path stats",
+      "fetchStatusCodeDistFailed": "Failed to fetch status code distribution",
+      "fetchErrorLogsFailed": "Failed to fetch error logs"
+    },
+    "messages": {
+      "roleUpdated": "User role updated successfully",
+      "userDeleted": "User deleted successfully",
+      "configUpdated": "Config updated successfully"
     }
   },
   "turnstile": {
@@ -130,6 +164,11 @@
       "hasAccount": "Already have an account?",
       "loginNow": "Login now",
       "success": "Registration successful",
+      "welcomeAvatar": "Choose Avatar",
+      "welcomeAvatarHint": "Pick an avatar you like",
+      "welcomeNickname": "Nickname",
+      "welcomeNicknamePlaceholder": "What should we call you?",
+      "welcomeGo": "Get Started",
       "registrationClosed": "Registration is currently closed",
       "errors": {
         "missingField": "Please provide username or email parameter",
@@ -178,8 +217,29 @@
       "adminConfigError": "Admin account configuration error",
       "dataMigrationError": "Login failed, user data migration error",
       "tokenExpired": "Token expired or invalid",
-      "verifyFailed": "Verification failed, please try again later"
-     }
+      "verifyFailed": "Verification failed, please try again later",
+      "sessionExpired": "Session expired",
+      "unauthorized": "Unauthorized, please log in first",
+      "forbidden": "Insufficient permissions",
+      "notFound": "Resource not found",
+      "rateLimited": "Too many requests, please try again later",
+      "payloadTooLarge": "Request payload too large"
+    },
+    "validation": {
+      "usernameFormat": "Username can only contain letters, numbers, and underscores, 3-10 characters",
+      "emailInvalid": "Please enter a valid email address",
+      "passwordMin": "Password must be at least 8 characters",
+      "passwordMax": "Password must not exceed 30 characters",
+      "passwordFormat": "Password must contain both letters and numbers",
+      "codeFormat": "Please enter a 6-digit verification code",
+      "turnstileRequired": "Please complete the human verification",
+      "usernameOrEmailRequired": "Please enter username or email",
+      "inputTooLong": "Input too long",
+      "passwordRequired": "Please enter password",
+      "currentPasswordRequired": "Please enter current password",
+      "passwordSameAsOld": "New password cannot be the same as current password"
+    },
+    "welcomeText": "Hey, long time no see 👋"
   },
   "landing": {
     "badge": "Cloud Health",
@@ -231,6 +291,7 @@
     "save": "Save",
     "cancel": "Cancel",
     "close": "Close",
+    "confirm": "Confirm",
     "error": "Error",
     "retry": "Retry",
     "success": "Success",
@@ -238,6 +299,8 @@
     "networkError": "Network error, please try again later",
     "timeoutError": "Request timeout, please check your network or try again later",
     "loginRequired": "Please log in first",
+    "invalidParams": "Invalid parameters",
+    "internalError": "Internal server error, please try again later",
     "on": "ON",
     "off": "OFF"
   },
@@ -259,6 +322,8 @@
     },
     "avatar": "Choose Avatar",
     "username": "Username",
+    "accountname": "Nickname",
+    "accountnamePlaceholder": "What should we call you?",
     "email": "Email",
     "verificationCode": "Verification Code",
     "sendCode": "Send Code",
@@ -294,6 +359,7 @@
       "codeInvalid": "Invalid verification code",
       "avatarRequired": "Please select an avatar",
       "invalidAvatar": "Invalid avatar format",
+      "invalidAccountname": "Nickname must not exceed 20 characters",
       "alreadyExists": "Username or email already in use",
       "updateFailed": "Update failed, please try again later"
     }
@@ -303,7 +369,74 @@
     "serverTimeout": "Server timeout, please try uploading a smaller file or retry later",
     "streamUnreadable": "Unable to read response stream",
     "requestFailed": "Request failed: {{status}}",
-    "aiNotConfigured": "AI service is not configured. Please fill in the API information in Settings or contact the administrator."
+    "aiNotConfigured": "AI service is not configured. Please fill in the API information in Settings or contact the administrator.",
+    "errors": {
+      "emptyMessage": "Message content cannot be empty",
+      "messageTooLong": "Total message length exceeds the limit, please shorten and retry",
+      "notConfigured": "AI API is not configured. Please fill in the settings or contact the administrator",
+      "apiKeyInvalid": "API Key is invalid or unauthorized, please check your API Key configuration",
+      "endpointNotFound": "API endpoint does not exist, please check if the Base URL is correct (e.g., https://api.openai.com/v1)",
+      "rateLimited": "API rate limit exceeded, please retry later",
+      "modelFailed": "Model request failed, please retry later",
+      "invalidFileFormat": "File content should be in base64 data URL format",
+      "textNotBase64": "Text files should not be base64 encoded",
+      "pdfFormatError": "Invalid PDF file format, missing data URL separator",
+      "serviceUnavailable": "Analysis service is temporarily unavailable, please retry later or try uploading a smaller file",
+      "quizRateLimited": "Quiz generation requests are too frequent, please try again later",
+      "emptyQuizData": "Quiz data is empty, cannot grade",
+      "answerMismatch": "Number of answers does not match the number of questions",
+      "missingCorrectAnswer": "Question {{index}} is missing the correct answer",
+      "parseQuizFailed": "Unable to parse quiz data",
+      "invalidParams": "Invalid request parameters",
+      "missingUrl": "Missing url parameter",
+      "urlValidationFailed": "URL validation failed",
+      "textContentTooLarge": "Text content exceeds {{max}}KB limit, please shorten and retry",
+      "fileSizeExceeded": "File size exceeds {{max}}MB limit"
+    },
+    "validation": {
+      "fileRequired": "Please upload a file",
+      "fileTooLarge": "File data too large",
+      "unsupportedFileType": "Unsupported file type, only PNG, JPG, TXT are supported",
+      "fileNameRequired": "File name cannot be empty",
+      "fileNameTooLong": "File name too long",
+      "invalidMessageRole": "Message role must be user, assistant, or system",
+      "messageContentRequired": "Message content cannot be empty",
+      "messageContentTooLong": "Single message content too long",
+      "messagesRequired": "Message list cannot be empty",
+      "tooManyMessages": "Too many messages",
+      "questionRequired": "Question content cannot be empty",
+      "questionTooLong": "Question content too long",
+      "minOptions": "At least 2 options required",
+      "maxOptions": "At most 6 options allowed",
+      "explanationTooLong": "Explanation content too long",
+      "quizModeInvalid": "mode must be generate or grade",
+      "tooManyQuestions": "Number of questions cannot exceed 100",
+      "gradeRequiresData": "Grade mode requires questions and userAnswers"
+    },
+    "quiz": {
+      "commentExcellent": "Excellent! Your health knowledge is very rich, keep it up!",
+      "commentGood": "Good job! You have a good understanding of health knowledge, with room for improvement.",
+      "commentFair": "Not bad! Consider learning more about health to improve your health literacy.",
+      "commentNeedsWork": "Keep going! We recommend learning some basic health knowledge and taking care of your body."
+    }
+  },
+  "aiConfig": {
+    "errors": {
+      "sessionExpired": "Session expired",
+      "getFailed": "Failed to get AI config",
+      "dataKeyNotInitialized": "User data key not initialized",
+      "saveFailed": "Failed to save AI config",
+      "deleteFailed": "Failed to clear AI config"
+    }
+  },
+  "csrf": {
+    "missingToken": "CSRF token missing",
+    "invalidToken": "CSRF token verification failed"
+  },
+  "errorBoundary": {
+    "title": "Page Error",
+    "message": "Sorry, the application encountered an unexpected issue. You can try refreshing the page to recover.",
+    "refresh": "Refresh Page"
   },
   "apiConfig": {
     "title": "AI Configuration",
@@ -367,20 +500,30 @@
     "generating": "Generating..."
   },
   "dashboard": {
+    "refresh": "Refresh",
     "today": "Today",
     "totalCalls": "Total Calls",
     "activity": "Activity",
     "activeGrowth": "Active growth",
     "perUser": "Per user",
     "usage": "Usage Distribution",
+    "userGrowth": "User Growth",
+    "totalRequests": "Total Requests",
+    "errorRate": "Error Rate",
+    "last24Hours": "Last 24 Hours",
+    "requestCount": "Requests",
+    "latency": "Latency",
+    "avgLatencyMs": "Avg Latency (ms)",
     "actions": {
       "analyze": "Report Analysis",
       "chat": "Smart Chat",
       "plan": "Plan Generator",
       "quiz": "Health Quiz"
-    }
+    },
+    "noData": "No data available"
   },
   "users": {
+    "refresh": "Refresh",
     "title": "User Management",
     "subtitle": "Manage registered users, view, edit and delete users",
     "searchPlaceholder": "Search username or email",
@@ -402,14 +545,25 @@
       "edit": "Edit Role",
       "delete": "Delete",
       "confirm": "Confirm",
-      "cancel": "Cancel"
+      "cancel": "Cancel",
+      "noPermission": "Insufficient permissions"
     },
     "errors": {
       "updateFailed": "Failed to update user role, please retry",
       "deleteFailed": "Failed to delete user, please retry"
+    },
+    "upgradeConfirm": {
+      "title": "Grant Admin Privileges",
+      "message": "You are about to upgrade this user to admin. Please confirm the following:",
+      "risk1": "Admins can manage all users, including viewing, editing, and deleting users",
+      "risk2": "Admins can modify system configuration, affecting global platform behavior",
+      "risk3": "You can always downgrade an admin back to a regular user later",
+      "cancel": "Cancel",
+      "confirm": "Confirm Grant"
     }
   },
   "dataManagement": {
+    "refresh": "Refresh",
     "title": "Data Management",
     "subtitle": "View platform usage logs and admin audit records",
     "tabs": {
@@ -421,7 +575,16 @@
       "analyze": "Report Analysis",
       "chat": "Smart Chat",
       "plan": "Plan Generator",
-      "quiz": "Health Quiz"
+      "quiz": "Health Quiz",
+      "updateSystemConfig": "Update System Config",
+      "updateUserRole": "Update User Role",
+      "deleteUser": "Delete User",
+      "createBackupTask": "Create Backup Task",
+      "updateBackupTask": "Update Backup Task",
+      "deleteBackupTask": "Delete Backup Task",
+      "executeBackup": "Execute Backup",
+      "restoreBackup": "Restore Backup",
+      "clearUsageLogs": "Clear Usage Logs"
     },
     "columns": {
       "actionType": "Action Type",
@@ -436,7 +599,14 @@
     "noUsageLogs": "No usage logs",
     "noAuditLogs": "No audit logs",
     "pagination": "{{total}} records, page {{page}} / {{totalPages}}",
-    "anonymous": "Anonymous"
+    "anonymous": "Anonymous",
+    "clearAll": "Clear All",
+    "clearConfirmTitle": "Confirm Clear",
+    "clearConfirmMessage": "This action cannot be undone.",
+    "clearUsageWarning": "All usage log data will be permanently deleted.",
+    "clearAuditWarning": "All audit log data will be permanently deleted.",
+    "cancel": "Cancel",
+    "confirmClear": "Confirm Clear"
   },
   "systemConfig": {
     "title": "System Config",
@@ -447,19 +617,68 @@
     "updatedAt": "Updated at",
     "saved": "Saved",
     "saveFailed": "Save failed",
+    "defaultValue": "Default",
+    "groups": {
+      "site": "Site Settings",
+      "siteDesc": "Customize site appearance and display content",
+      "switches": "Feature Switches",
+      "switchesDesc": "Control the enablement of core platform features",
+      "ai": "AI Quota",
+      "aiDesc": "Manage AI feature usage limits",
+      "security": "Security Settings",
+      "securityDesc": "Manage login security and request limits",
+      "email": "Email Settings",
+      "emailDesc": "Manage email sending parameters"
+    },
+    "confirm": {
+      "maintenanceEnable": {
+        "title": "Enable Maintenance Mode",
+        "message": "All regular users will immediately lose access to the platform. Only admins can continue using it. Are you sure?"
+      },
+      "maintenanceDisable": {
+        "title": "Disable Maintenance Mode",
+        "message": "The platform will return to normal access for all users. Are you sure?"
+      },
+      "registrationDisable": {
+        "title": "Disable Registration",
+        "message": "New users will not be able to register accounts. Are you sure?"
+      },
+      "registrationEnable": {
+        "title": "Enable Registration",
+        "message": "New users will be able to register accounts normally. Are you sure?"
+      },
+      "confirm": "Confirm",
+      "cancel": "Cancel"
+    },
+    "validation": {
+      "numberMin": "Value cannot be less than {{min}}",
+      "numberMax": "Value cannot be greater than {{max}}",
+      "numberInvalid": "Please enter a valid number",
+      "numberInteger": "Please enter an integer"
+    },
+    "activeWarnings": {
+      "maintenance": "⚠️ Maintenance mode is active. All regular users cannot access the platform.",
+      "registrationClosed": "⚠️ Registration is closed. New users cannot sign up."
+    },
     "displayNames": {
-      "site_name": "Site Name",
-      "welcome_message": "Welcome Message",
       "max_requests_per_day": "Max Requests Per Day",
       "maintenance_mode": "Maintenance Mode",
-      "enable_registration": "Enable Registration"
+      "enable_registration": "Allow Registration",
+      "max_request_body_size": "Max Request Body Size",
+      "max_login_failures": "Max Login Failures",
+      "account_lockout_seconds": "Account Lockout (seconds)",
+      "smtp_timeout_ms": "SMTP Timeout (ms)",
+      "metrics_sample_rate": "Success Sample Rate"
     },
     "descriptions": {
-      "site_name": "Site name displayed in page title and navbar",
-      "welcome_message": "Welcome message shown to users after login",
-      "max_requests_per_day": "Max AI requests per user per day, 0 for unlimited",
-      "maintenance_mode": "When enabled, regular users cannot use the platform",
-      "enable_registration": "When disabled, new user registration is prohibited"
+      "max_requests_per_day": "Maximum AI requests per user per day, 0 for unlimited",
+      "maintenance_mode": "When enabled, regular users cannot access the platform",
+      "enable_registration": "When disabled, new user registration is blocked",
+      "max_request_body_size": "Maximum allowed API request body size in bytes, default 10MB",
+      "max_login_failures": "Account will be temporarily locked after this many consecutive failures",
+      "account_lockout_seconds": "Auto-unlock wait time after account is locked",
+      "smtp_timeout_ms": "Timeout for SMTP email sending",
+      "metrics_sample_rate": "Sampling ratio for successful requests, between 0 and 1, 0.1 = 10%"
     }
   },
   "maintenance": {
@@ -579,9 +798,12 @@
     "text": "Text",
     "pdf": "PDF",
     "preview": "Preview",
+    "pdfHint": "PDF files cannot be parsed directly. For more accurate analysis, please upload in text format (.txt) or as a screenshot (.png/.jpg).",
+    "pdfExtracted": "Text content extracted from PDF",
     "errors": {
       "validateFailed": "File validation failed",
-      "readFailed": "Failed to read file, please retry"
+      "readFailed": "Failed to read file, please retry",
+      "pdfEmpty": "No text content extracted from PDF. The file may be a scanned document or image-based PDF"
     }
   },
   "metrics": {
@@ -621,5 +843,147 @@
     "answered": "{{answered}} / {{total}} answered",
     "submit": "Submit Answers",
     "submitting": "Submitting..."
+  },
+  "backup": {
+    "title": "Backup Management",
+    "subtitle": "Create and manage system backup tasks",
+    "refresh": "Refresh",
+    "createTask": "Create Backup Task",
+    "empty": "No backup tasks yet. Click the button above to create one.",
+    "paused": "Paused",
+    "active": "Active",
+    "manual": "Manual",
+    "lastRun": "Last Run",
+    "nextRun": "Next Run",
+    "createdAt": "Created",
+    "execute": "Execute Backup",
+    "resume": "Resume",
+    "pause": "Pause",
+    "viewRecords": "View Records",
+    "delete": "Delete",
+    "download": "Download",
+    "viewAll": "View All",
+    "taskRecords": "Backup Records",
+    "allRecords": "All Backup Records",
+    "retention": "Retain {{days}} days",
+    "frequency": {
+      "manual": "Manual",
+      "daily": "Daily",
+      "weekly": "Weekly",
+      "monthly": "Monthly"
+    },
+    "scope": {
+      "database": "Database",
+      "config": "Configuration"
+    },
+    "status": {
+      "completed": "Completed",
+      "running": "Running",
+      "failed": "Failed",
+      "pending": "Pending"
+    },
+    "form": {
+      "name": "Backup Name",
+      "namePlaceholder": "Enter backup task name",
+      "scope": "Backup Content",
+      "frequency": "Backup Frequency",
+      "retention": "Retention Days",
+      "submit": "Create",
+      "encryptionPassword": "Encryption Password",
+      "optional": "Optional",
+      "encryptionPasswordPlaceholder": "Leave empty for no encryption",
+      "encryptionPasswordHint": "If set, this password will be required for download and restore",
+      "errors": {
+        "nameRequired": "Please enter a backup name",
+        "nameTooLong": "Backup name cannot exceed 30 characters",
+        "scopeRequired": "Please select at least one backup content"
+      }
+    },
+    "table": {
+      "status": "Status",
+      "task": "Task Name",
+      "scope": "Scope",
+      "size": "Size",
+      "startedAt": "Started",
+      "completedAt": "Completed",
+      "actions": "Actions"
+    },
+    "deleteConfirm": {
+      "title": "Delete Backup Task",
+      "message": "Are you sure you want to delete backup task \"{{name}}\"? All related backup records will also be deleted. This action cannot be undone."
+    },
+    "errors": {
+      "fetchFailed": "Failed to fetch backup tasks",
+      "createFailed": "Failed to create",
+      "executeFailed": "Failed to execute",
+      "downloadFailed": "Failed to download",
+      "restoreFailed": "Failed to restore",
+      "previewFailed": "Failed to preview",
+      "invalidBackupFile": "Invalid backup file format",
+      "encryptionPasswordRequired": "Encrypted backup requires decryption password",
+      "missingDownloadToken": "Missing download token",
+      "invalidToken": "Download token invalid or expired",
+      "recordNotFound": "Backup record not found",
+      "getFailed": "Failed to get backup data",
+      "missingTaskId": "Missing task ID",
+      "taskNotFound": "Backup task not found",
+      "missingRecordId": "Missing record ID",
+      "operationFailed": "Operation failed",
+      "updateFailed": "Failed to update backup task",
+      "deleteFailed": "Failed to delete backup task"
+    },
+    "validation": {
+      "nameRequired": "Backup name cannot be empty",
+      "nameTooLong": "Backup name cannot exceed 30 characters",
+      "scopeRequired": "At least one backup content must be selected",
+      "retentionMin": "Retention days must be at least 1",
+      "retentionMax": "Retention days cannot exceed 365",
+      "invalidBackupFormat": "Invalid backup data format: missing _meta field",
+      "confirmRequired": "Please confirm the restore operation"
+    },
+    "messages": {
+      "executeSuccess": "Backup executed successfully",
+      "restoreComplete": "Restore operation completed",
+      "createSuccess": "Backup task created successfully",
+      "updateSuccess": "Backup task updated successfully",
+      "deleteSuccess": "Backup task deleted successfully"
+    },
+    "restore": "Import & Restore",
+    "restoreResult": "Restore Result",
+    "restoreSuccess": "Restore operation completed",
+    "restoredTables": "Restored {{count}} database tables",
+    "restoredConfigs": "Restored {{count}} configuration items",
+    "restoredKvKeys": "Restored {{count}} KV keys",
+    "restoreDialogDesc": "Select a backup file to restore. If the backup is encrypted, please enter the decryption password.",
+    "restorePassword": "Decryption Password",
+    "restorePasswordPlaceholder": "Leave empty for unencrypted backups",
+    "selectFile": "Select File",
+    "downloadDialogDesc": "Enter an encryption password to encrypt the backup file. Leave empty for unencrypted download.",
+    "recordsTitle": "Backup Records",
+    "recordsSubtitle": "View execution records of all backup tasks",
+    "recordsSubtitleFiltered": "View records for task \"{{name}}\"",
+    "noRecords": "No backup records yet",
+    "noTaskRecords": "No records for this task",
+    "previewTitle": "Restore Preview",
+    "previewExportedAt": "Exported At",
+    "previewVersion": "Version",
+    "previewTables": "Tables",
+    "previewRows": "rows",
+    "previewNamespaces": "Namespaces",
+    "previewConfigs": "Configurations",
+    "confirmRestore": "Confirm Restore",
+    "retentionDays": {
+      "7": "7 Days",
+      "30": "30 Days",
+      "90": "90 Days",
+      "180": "180 Days",
+      "365": "365 Days"
+    }
+  },
+  "handler": {
+    "unauthorized": "Unauthorized, please log in first",
+    "tooManyRequests": "Too many requests, please try again later",
+    "invalidParams": "Invalid request parameters",
+    "dailyLimitReached": "Daily request limit reached, please try again tomorrow"
   }
 }

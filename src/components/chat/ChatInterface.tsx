@@ -7,7 +7,7 @@ import {
   FiEdit2, FiCheck
 } from 'react-icons/fi'
 import { useAuth } from '@/contexts/AuthContext'
-import { getAvatarDisplayUrl } from '@/utils/avatar'
+import Avatar from '../common/Avatar'
 import type { ChatMessage } from '@/types'
 import type { ChatSkill } from '@/pages/chat/SmartChat'
 import type { ChatSession } from '@/types'
@@ -404,16 +404,7 @@ export default function ChatInterface({
               }`}
             >
               {msg.role === 'user' ? (
-                <img
-                  src={getAvatarDisplayUrl(user?.avatar || localStorage.getItem('user_avatar') || undefined)}
-                  alt="avatar"
-                  className="w-full h-full"
-                  onError={(e) => {
-                    const target = e.currentTarget;
-                    target.onerror = null;
-                    target.src = '/User/default.svg';
-                  }}
-                />
+                <Avatar avatar={user?.avatar || localStorage.getItem('user_avatar') || undefined} size="100%" className="flex-shrink-0" />
               ) : (
                 <img
                   src="/Doctor.svg"

@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useAIStream } from '@/hooks/useAI'
+import { useAIStream } from '@/hooks/useAIStream'
 import { useResult } from '@/hooks/useResult'
 import PlanForm from '@/components/features/PlanForm'
 import ResultCard from '@/components/common/ResultCard'

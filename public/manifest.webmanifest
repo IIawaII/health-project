@@ -1,0 +1,19 @@
+{
+  "name": "Cloud Health",
+  "short_name": "CloudHealth",
+  "description": "体检报告分析、个性化健康计划、健康知识问答与专业健康建议",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#2563eb",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ],
+  "categories": ["health", "medical", "lifestyle"]
+}

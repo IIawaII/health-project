@@ -4,7 +4,7 @@
 
 @layer base {
   html {
-    font-family: "Noto Sans SC", "Noto Sans", system-ui, -apple-system, sans-serif;
+    font-family: "Noto Sans SC", "PingFang SC", "Microsoft YaHei", "Hiragino Sans GB", "Source Han Sans SC", system-ui, -apple-system, sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
@@ -143,4 +143,9 @@
     color: #5EEAD4;
   }
 
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
 }

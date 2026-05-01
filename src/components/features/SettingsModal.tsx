@@ -3,9 +3,11 @@ import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '@/contexts/AuthContext'
 import type { User } from '@/types/auth'
-import { AVATAR_LIST, getUserAvatarUrl } from '@/utils/avatar'
+import { AVATAR_LIST } from '@/utils/avatar'
+import Avatar from '../common/Avatar'
+import { fetchWithTimeout } from '@/api/client'
 import { usernameSchema, emailSchema, changePasswordSchema } from '../../../shared/schemas'
-import { FiX, FiMail, FiLock, FiUser, FiCheck, FiAlertCircle, FiMessageSquare } from 'react-icons/fi'
+import { FiX, FiMail, FiLock, FiUser, FiCheck, FiAlertCircle, FiMessageSquare, FiSmile } from 'react-icons/fi'
 
 interface SettingsModalProps {
   isOpen: boolean
@@ -18,6 +20,7 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const navigate = useNavigate()
   const [activeTab, setActiveTab] = useState<'profile' | 'password'>('profile')
   const [username, setUsername] = useState(user?.username || '')
+  const [accountname, setAccountname] = useState(user?.accountname || '')
   const [email, setEmail] = useState(user?.email || '')
   const [selectedAvatar, setSelectedAvatar] = useState(user?.avatar)
   const [currentPassword, setCurrentPassword] = useState('')
@@ -33,10 +36,11 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   useEffect(() => {
     if (isOpen) {
       setUsername(user?.username || '')
+      setAccountname(user?.accountname || '')
       setEmail(user?.email || '')
       setSelectedAvatar(user?.avatar)
     }
-  }, [isOpen, user?.username, user?.email, user?.avatar])
+  }, [isOpen, user?.username, user?.accountname, user?.email, user?.avatar])
 
   // 当模态框关闭时清空敏感状态
   useEffect(() => {
@@ -69,12 +73,11 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     setMessage(null)
 
     try {
-      const response = await fetch('/api/auth/send_verification_code', {
+      const response = await fetchWithTimeout('/api/auth/sendVerificationCode', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        credentials: 'include',
         body: JSON.stringify({
           email,
           type: 'update_email',
@@ -132,9 +135,12 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
 
     setLoading(true)
     try {
-      const body: { username?: string; email: string; avatar?: string; verificationCode?: string } = { email }
+      const body: { username?: string; email: string; avatar?: string; accountname?: string; verificationCode?: string } = { email }
       if (username !== (user?.username || '')) {
         body.username = username
+      }
+      if (accountname !== (user?.accountname || '')) {
+        body.accountname = accountname.trim()
       }
       if (selectedAvatar) {
         body.avatar = selectedAvatar
@@ -143,12 +149,11 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
         body.verificationCode = verificationCode
       }
 
-      const response = await fetch('/api/auth/update_profile', {
+      const response = await fetchWithTimeout('/api/auth/update_profile', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        credentials: 'include',
         body: JSON.stringify(body),
       })
       const data = await response.json() as { user?: unknown; error?: string }
@@ -178,12 +183,11 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     }
     setLoading(true)
     try {
-      const response = await fetch('/api/auth/change_password', {
+      const response = await fetchWithTimeout('/api/auth/change_password', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        credentials: 'include',
         body: JSON.stringify({ currentPassword, newPassword }),
       })
       const data = await response.json() as { error?: string; requireReLogin?: boolean }
@@ -278,12 +282,7 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                           : 'hover:scale-105 opacity-80 hover:opacity-100'
                       }`}
                     >
-                      <img
-                        src={getUserAvatarUrl(name)}
-                        alt={name}
-                        className="w-10 h-10"
-                        loading="lazy"
-                      />
+                      <Avatar avatar={name} size={40} />
                       {selectedAvatar === name && (
                         <div className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-primary rounded-full flex items-center justify-center shadow-sm border-2 border-white dark:border-slate-800">
                           <FiCheck className="w-3 h-3 text-white" />
@@ -292,6 +291,22 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                     </button>
                   ))}
                 </div>
+              </div>
+
+              {/* Accountname */}
+              <div>
+                <label className="block text-sm font-medium text-foreground dark:text-foreground-dark mb-2">
+                  <FiSmile className="w-4 h-4 inline mr-1" />
+                  {t('settings.accountname')}
+                </label>
+                <input
+                  type="text"
+                  value={accountname}
+                  onChange={(e) => setAccountname(e.target.value)}
+                  className="w-full px-4 py-2.5 rounded-xl border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm text-foreground dark:text-foreground-dark focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all"
+                  placeholder={t('settings.accountnamePlaceholder')}
+                  maxLength={20}
+                />
               </div>
 
               {/* Username */}
@@ -378,6 +393,7 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                   type="password"
                   value={currentPassword}
                   onChange={(e) => setCurrentPassword(e.target.value)}
+                  maxLength={30}
                   className="w-full px-4 py-2.5 rounded-xl border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm text-foreground dark:text-foreground-dark focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all"
                   placeholder={t('auth.login.passwordPlaceholder')}
                 />
@@ -390,6 +406,7 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                   type="password"
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
+                  maxLength={30}
                   className="w-full px-4 py-2.5 rounded-xl border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm text-foreground dark:text-foreground-dark focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all"
                   placeholder={t('auth.register.passwordPlaceholder')}
                 />
@@ -402,6 +419,7 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                   type="password"
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
+                  maxLength={30}
                   className="w-full px-4 py-2.5 rounded-xl border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm text-foreground dark:text-foreground-dark focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all"
                   placeholder={t('auth.register.confirmPasswordPlaceholder')}
                 />

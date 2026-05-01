@@ -29,6 +29,7 @@ function extractUser(data: unknown): User | null {
     username: getStringField(userData, 'username') || '',
     email: getStringField(userData, 'email') || '',
     avatar: getStringField(userData, 'avatar'),
+    accountname: getStringField(userData, 'accountname'),
     role: (getStringField(userData, 'role') as 'user' | 'admin') || 'user',
     dataKey: getStringField(userData, 'dataKey'),
   };
@@ -294,7 +295,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     // 2. 调用服务端登出接口（必须等待，确保服务器删除 token）
     try {
-      await fetch(`${API_BASE_URL}/api/auth/logout`, {
+      await fetchWithTimeout(`${API_BASE_URL}/api/auth/logout`, {
         method: 'POST',
       });
     } catch {
@@ -311,8 +312,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     // 清理加密配置相关数据
     localStorage.removeItem('health_ai_config_enc');
+    localStorage.removeItem('health_ai_config_iv');
     localStorage.removeItem('health_ai_config');
-    localStorage.removeItem('user_data_key');
+    sessionStorage.removeItem('user_data_key');
 
     // 4. 立即更新前端状态
     setState({ isAuthenticated: false, user: null, isLoading: false });

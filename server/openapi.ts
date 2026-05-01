@@ -62,6 +62,7 @@ export const updateProfileRequestSchema = z.object({
   username: z.string().optional().openapi({ description: '新用户名' }),
   email: z.string().email().optional().openapi({ description: '新邮箱' }),
   avatar: z.string().optional().openapi({ description: '头像 URL' }),
+  accountname: z.string().max(20).optional().openapi({ description: '称呼/昵称' }),
   verificationCode: z.string().optional().openapi({ description: '修改邮箱时的验证码' }),
 }).openapi('UpdateProfileRequest')
 
@@ -76,7 +77,7 @@ export const chatRequestSchema = z.object({
 
 export const analyzeRequestSchema = z.object({
   fileData: z.string().min(1).openapi({ description: '文件数据（base64 或纯文本）' }),
-  fileType: z.enum(['image/png', 'image/jpeg', 'image/jpg', 'application/pdf', 'text/plain']).openapi({ description: '文件类型' }),
+  fileType: z.enum(['image/png', 'image/jpeg', 'image/jpg', 'text/plain']).openapi({ description: '文件类型（PDF 文件会在前端提取文本后以 text/plain 发送）' }),
   fileName: z.string().min(1).max(255).openapi({ description: '文件名' }),
   stream: z.boolean().optional().openapi({ description: '是否流式响应' }),
 }).openapi('AnalyzeRequest')
@@ -205,7 +206,7 @@ export const openApiDocument = {
         responses: { '200': { description: '可用性检查结果' } },
       },
     },
-    '/api/auth/send_verification_code': {
+    '/api/auth/sendVerificationCode': {
       post: {
         tags: ['Auth'],
         summary: '发送验证码',

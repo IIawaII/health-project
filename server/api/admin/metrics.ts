@@ -14,6 +14,7 @@ import {
 } from '../../dao/metrics.dao'
 import { withAdmin } from '../../middleware/admin'
 import { getLogger } from '../../utils/logger'
+import { t } from '../../../shared/i18n/server'
 import type { AdminContext } from '../../middleware/admin'
 
 const logger = getLogger('AdminMetrics')
@@ -29,7 +30,7 @@ export const onRequestGetOverview = withAdmin(async (context: AdminContext) => {
     return jsonResponse({ success: true, data }, 200)
   } catch (error) {
     logger.error('Failed to get metrics overview', { error: error instanceof Error ? error.message : String(error) })
-    return errorResponse('获取性能概览失败', 500)
+    return errorResponse(t('admin.errors.fetchMetricsOverviewFailed', '获取性能概览失败'), 500)
   }
 })
 
@@ -42,7 +43,7 @@ export const onRequestGetTrend = withAdmin(async (context: AdminContext) => {
     return jsonResponse({ success: true, data }, 200)
   } catch (error) {
     logger.error('Failed to get request trend', { error: error instanceof Error ? error.message : String(error) })
-    return errorResponse('获取请求趋势失败', 500)
+    return errorResponse(t('admin.errors.fetchRequestTrendFailed', '获取请求趋势失败'), 500)
   }
 })
 
@@ -55,7 +56,7 @@ export const onRequestGetPaths = withAdmin(async (context: AdminContext) => {
     return jsonResponse({ success: true, data }, 200)
   } catch (error) {
     logger.error('Failed to get path stats', { error: error instanceof Error ? error.message : String(error) })
-    return errorResponse('获取路径统计失败', 500)
+    return errorResponse(t('admin.errors.fetchPathStatsFailed', '获取路径统计失败'), 500)
   }
 })
 
@@ -68,7 +69,7 @@ export const onRequestGetStatusCodes = withAdmin(async (context: AdminContext) =
     return jsonResponse({ success: true, data }, 200)
   } catch (error) {
     logger.error('Failed to get status codes', { error: error instanceof Error ? error.message : String(error) })
-    return errorResponse('获取状态码分布失败', 500)
+    return errorResponse(t('admin.errors.fetchStatusCodeDistFailed', '获取状态码分布失败'), 500)
   }
 })
 
@@ -81,6 +82,6 @@ export const onRequestGetErrors = withAdmin(async (context: AdminContext) => {
     return jsonResponse({ success: true, data }, 200)
   } catch (error) {
     logger.error('Failed to get recent errors', { error: error instanceof Error ? error.message : String(error) })
-    return errorResponse('获取错误日志失败', 500)
+    return errorResponse(t('admin.errors.fetchErrorLogsFailed', '获取错误日志失败'), 500)
   }
 })

@@ -1,17 +1,10 @@
-/**
- * 请求性能监控中间件
- * 记录每个 API 请求的路径、方法、状态码、延迟、用户 IP
- * 数据写入 D1 request_metrics 表，管理员可通过后台查看图表
- */
-
 import { getDb, requestMetrics } from '../db'
 import { getLogger } from '../utils/logger'
 import type { Env } from '../utils/env'
 
 const logger = getLogger('Monitor')
 
-/** 监控采样率（0-1），1 表示全量记录 */
-const SAMPLE_RATE = 0.1
+const DEFAULT_SUCCESS_SAMPLE_RATE = 0.1
 
 export interface MetricRecord {
   path: string
@@ -22,21 +15,42 @@ export interface MetricRecord {
   ip?: string
 }
 
-/**
- * 异步记录请求指标到 D1
- * 使用 waitUntil 确保不阻塞响应
- * 在 worker.ts 的 fetch handler 中调用
- */
+async function getSuccessSampleRate(d1: D1Database): Promise<number> {
+  try {
+    const row = await d1.prepare("SELECT value FROM system_configs WHERE key = 'metrics_sample_rate'").first<{ value: string }>()
+    if (row?.value) {
+      const rate = parseFloat(row.value)
+      if (!isNaN(rate) && rate >= 0 && rate <= 1) return rate
+    }
+  } catch { logger.debug('Failed to read metrics_sample_rate from system_configs, using default') }
+  return DEFAULT_SUCCESS_SAMPLE_RATE
+}
+
 export function recordMetric(
   env: Env,
   ctx: ExecutionContext,
   record: MetricRecord
 ): void {
-  // 采样控制：仅记录 10% 请求以减少 D1 写入量
-  if (Math.random() > SAMPLE_RATE) return
+  const isError = record.statusCode >= 400
 
+  if (!isError) {
+    const sampleRatePromise = getSuccessSampleRate(env.DB).then((rate) => {
+      if (Math.random() > rate) return
+      writeMetric(env, record)
+    }).catch(() => {
+      if (Math.random() > DEFAULT_SUCCESS_SAMPLE_RATE) return
+      writeMetric(env, record)
+    })
+    ctx.waitUntil(sampleRatePromise)
+    return
+  }
+
+  writeMetric(env, record)
+}
+
+function writeMetric(env: Env, record: MetricRecord): void {
   const db = getDb(env.DB)
-  const promise = db
+  db
     .insert(requestMetrics)
     .values({
       id: crypto.randomUUID(),
@@ -52,6 +66,4 @@ export function recordMetric(
     .catch((err) => {
       logger.warn('Failed to record metric', { error: err instanceof Error ? err.message : String(err) })
     })
-
-  ctx.waitUntil(promise)
 }

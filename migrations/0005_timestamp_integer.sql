@@ -8,6 +8,7 @@ CREATE TABLE users_new (
   email TEXT UNIQUE NOT NULL,
   password_hash TEXT NOT NULL,
   avatar TEXT,
+  accountname TEXT,
   role TEXT DEFAULT 'user',
   data_key TEXT,
   created_at INTEGER NOT NULL,
@@ -15,7 +16,7 @@ CREATE TABLE users_new (
 );
 
 INSERT INTO users_new
-SELECT id, username, email, password_hash, avatar, role, data_key,
+SELECT id, username, email, password_hash, avatar, accountname, role, data_key,
        COALESCE(strftime('%s', created_at), strftime('%s', 'now')),
        COALESCE(strftime('%s', updated_at), strftime('%s', 'now'))
 FROM users;
@@ -33,13 +34,14 @@ CREATE TABLE verification_codes_new (
   purpose TEXT NOT NULL,
   email TEXT NOT NULL,
   code TEXT NOT NULL,
+  attempts INTEGER DEFAULT 0,
   created_at INTEGER NOT NULL,
   expires_at INTEGER NOT NULL,
   PRIMARY KEY (purpose, email)
 );
 
 INSERT INTO verification_codes_new
-SELECT purpose, email, code,
+SELECT purpose, email, code, attempts,
        COALESCE(strftime('%s', created_at), strftime('%s', 'now')),
        COALESCE(strftime('%s', expires_at), strftime('%s', 'now') + 180)
 FROM verification_codes;

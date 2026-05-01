@@ -137,11 +137,14 @@ export async function deleteVerificationCooldown(
  * 清理所有已过期的验证码记录
  */
 export async function cleanupExpiredVerificationCodes(d1: D1Database): Promise<void> {
+  const now = Math.floor(Date.now() / 1000)
   await db(d1)
     .delete(verificationCodes)
-    .where(sql`${verificationCodes.expires_at} <= ${new Date().toISOString()}`)
+    .where(sql`${verificationCodes.expires_at} <= ${now}`)
     .run()
 }
+
+const MAX_VERIFICATION_ATTEMPTS = 5
 
 export async function consumeVerificationCode(
   d1: D1Database,
@@ -149,31 +152,15 @@ export async function consumeVerificationCode(
   email: string,
   code: string,
   now: number = Math.floor(Date.now() / 1000)
-): Promise<'consumed' | 'not_found' | 'expired' | 'invalid'> {
+): Promise<'consumed' | 'not_found' | 'expired' | 'invalid' | 'too_many_attempts'> {
   const drizzleDb = db(d1)
-  const codeHash = await sha256Hash(code)
 
-  // 先尝试原子删除（匹配哈希且未过期）
-  const deleteResult = await drizzleDb
-    .delete(verificationCodes)
-    .where(
-      and(
-        eq(verificationCodes.purpose, purpose),
-        eq(verificationCodes.email, email),
-        eq(verificationCodes.code, codeHash),
-        sql`${verificationCodes.expires_at} > ${now}`
-      )
-    )
-    .run()
-
-  if (deleteResult.meta.changes > 0) {
-    logger.info('Verification code consumed', { purpose, email })
-    return 'consumed'
-  }
-
-  // 查找记录以确定具体失败原因
   const record = await drizzleDb
-    .select({ code: verificationCodes.code, expires_at: verificationCodes.expires_at })
+    .select({
+      code: verificationCodes.code,
+      expires_at: verificationCodes.expires_at,
+      attempts: verificationCodes.attempts,
+    })
     .from(verificationCodes)
     .where(
       and(
@@ -192,5 +179,42 @@ export async function consumeVerificationCode(
     return 'expired'
   }
 
-  return 'invalid'
+  const currentAttempts = record[0].attempts ?? 0
+  if (currentAttempts >= MAX_VERIFICATION_ATTEMPTS) {
+    await deleteVerificationCode(d1, purpose, email)
+    return 'too_many_attempts'
+  }
+
+  const codeHash = await sha256Hash(code)
+
+  if (codeHash !== record[0].code) {
+    await drizzleDb
+      .update(verificationCodes)
+      .set({ attempts: currentAttempts + 1 })
+      .where(
+        and(
+          eq(verificationCodes.purpose, purpose),
+          eq(verificationCodes.email, email)
+        )
+      )
+      .run()
+    return 'invalid'
+  }
+
+  const deleteResult = await drizzleDb
+    .delete(verificationCodes)
+    .where(
+      and(
+        eq(verificationCodes.purpose, purpose),
+        eq(verificationCodes.email, email)
+      )
+    )
+    .run()
+
+  if (!deleteResult.meta.changes || deleteResult.meta.changes === 0) {
+    return 'not_found'
+  }
+
+  logger.info('Verification code consumed', { purpose, email })
+  return 'consumed'
 }

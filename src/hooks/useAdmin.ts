@@ -13,6 +13,14 @@ export interface StatsData {
   todayLogs: number;
   dailyUserStats: { date: string; count: number }[];
   usageStats: { action: string; count: number }[];
+  metricsOverview: {
+    totalRequests: number;
+    avgLatency: number;
+    maxLatency: number;
+    minLatency: number;
+    errorRate: number;
+  };
+  requestTrend: { hour: string; count: number; avgLatency: number }[];
 }
 
 export interface UserListData {
@@ -22,8 +30,8 @@ export interface UserListData {
     email: string;
     avatar: string | null;
     role: string;
-    created_at: string;
-    updated_at: string;
+    created_at: number;
+    updated_at: number;
   }>;
   total: number;
   page: number;
@@ -37,7 +45,7 @@ export interface LogListData {
     username: string | null;
     action: string;
     metadata: string | null;
-    created_at: string;
+    created_at: number;
   }>;
   total: number;
   page: number;
@@ -52,7 +60,7 @@ export interface AuditLogListData {
     target_type: string | null;
     target_id: string | null;
     details: string | null;
-    created_at: string;
+    created_at: number;
   }>;
   total: number;
   page: number;
@@ -62,7 +70,7 @@ export interface AuditLogListData {
 export interface ConfigData {
   key: string;
   value: string;
-  updated_at: string;
+  updated_at: number;
 }
 
 export function useAdminStats() {
@@ -132,23 +140,33 @@ export function useAdminUsers(page = 1, pageSize = 20, search = '') {
     fetchUsers();
   }, [fetchUsers]);
 
-  const updateUserRole = useCallback(async (id: string, role: string) => {
-    const response = await fetchWithTimeout(`${API_BASE_URL}/api/admin/users/${id}`, {
-      method: 'PATCH',
-      headers: defaultHeaders,
-      body: JSON.stringify({ role }),
-      timeout: 15000,
-    });
-    return response.ok;
+  const updateUserRole = useCallback(async (id: string, role: string): Promise<{ ok: boolean; message?: string }> => {
+    try {
+      const response = await fetchWithTimeout(`${API_BASE_URL}/api/admin/users/${id}`, {
+        method: 'PATCH',
+        headers: defaultHeaders,
+        body: JSON.stringify({ role }),
+        timeout: 15000,
+      });
+      const result = await response.json() as { message?: string };
+      return { ok: response.ok, message: result.message };
+    } catch {
+      return { ok: false, message: i18n.t('common.networkError') };
+    }
   }, []);
 
-  const deleteUser = useCallback(async (id: string) => {
-    const response = await fetchWithTimeout(`${API_BASE_URL}/api/admin/users/${id}`, {
-      method: 'DELETE',
-      headers: defaultHeaders,
-      timeout: 15000,
-    });
-    return response.ok;
+  const deleteUser = useCallback(async (id: string): Promise<{ ok: boolean; message?: string }> => {
+    try {
+      const response = await fetchWithTimeout(`${API_BASE_URL}/api/admin/users/${id}`, {
+        method: 'DELETE',
+        headers: defaultHeaders,
+        timeout: 15000,
+      });
+      const result = await response.json() as { message?: string };
+      return { ok: response.ok, message: result.message };
+    } catch {
+      return { ok: false, message: i18n.t('common.networkError') };
+    }
   }, []);
 
   return { data, loading, error, refetch: fetchUsers, updateUserRole, deleteUser };
@@ -192,7 +210,33 @@ export function useAdminLogs(page = 1, pageSize = 20, action?: string, startDate
   return { data, loading, error, refetch: fetchLogs };
 }
 
-export function useAdminAuditLogs(page = 1, pageSize = 20) {
+export async function clearUsageLogs(): Promise<boolean> {
+  try {
+    const response = await fetchWithTimeout(`${API_BASE_URL}/api/admin/logs`, {
+      method: 'DELETE',
+      headers: defaultHeaders,
+      timeout: 15000,
+    });
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
+
+export async function clearAuditLogs(): Promise<boolean> {
+  try {
+    const response = await fetchWithTimeout(`${API_BASE_URL}/api/admin/audit`, {
+      method: 'DELETE',
+      headers: defaultHeaders,
+      timeout: 15000,
+    });
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
+
+export function useAdminAuditLogs(page = 1, pageSize = 20, action?: string) {
   const [data, setData] = useState<AuditLogListData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -202,6 +246,7 @@ export function useAdminAuditLogs(page = 1, pageSize = 20) {
     setError('');
     try {
       const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
+      if (action) params.set('action', action);
       const response = await fetchWithTimeout(`${API_BASE_URL}/api/admin/audit?${params}`, {
         headers: defaultHeaders,
         timeout: 15000,
@@ -218,7 +263,7 @@ export function useAdminAuditLogs(page = 1, pageSize = 20) {
     } finally {
       setLoading(false);
     }
-  }, [page, pageSize]);
+  }, [page, pageSize, action]);
 
   useEffect(() => {
     fetchLogs();

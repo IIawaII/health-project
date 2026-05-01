@@ -3,6 +3,7 @@ export interface User {
   username: string;
   email: string;
   avatar?: string;
+  accountname?: string;
   role?: 'user' | 'admin';
   dataKey?: string;
 }

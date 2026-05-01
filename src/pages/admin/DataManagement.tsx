@@ -9,8 +9,11 @@ import {
   FiHelpCircle,
   FiFileText,
   FiShield,
+  FiTrash2,
+  FiAlertTriangle,
+  FiRefreshCw,
 } from 'react-icons/fi'
-import { useAdminLogs, useAdminAuditLogs } from '@/hooks/useAdmin'
+import { useAdminLogs, useAdminAuditLogs, clearUsageLogs, clearAuditLogs } from '@/hooks/useAdmin'
 
 const actionConfig: Record<string, { labelKey: string; color: string; icon: React.ElementType }> = {
   analyze: { labelKey: 'dashboard.actions.analyze', color: 'bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400', icon: FiFileText },
@@ -36,19 +39,25 @@ export default function DataManagement() {
   const [activeTab, setActiveTab] = useState<'usage' | 'audit'>('usage')
   const [page, setPage] = useState(1)
   const [actionFilter, setActionFilter] = useState('')
+  const [auditActionFilter, setAuditActionFilter] = useState('')
+  const [showClearConfirm, setShowClearConfirm] = useState(false)
+  const [clearing, setClearing] = useState(false)
+  const [refreshKey, setRefreshKey] = useState(0)
   const pageSize = 15
 
   const {
     data: usageData,
     loading: usageLoading,
     error: usageError,
+    refetch: refetchUsage,
   } = useAdminLogs(page, pageSize, actionFilter || undefined)
 
   const {
     data: auditData,
     loading: auditLoading,
     error: auditError,
-  } = useAdminAuditLogs(page, pageSize)
+    refetch: refetchAudit,
+  } = useAdminAuditLogs(page, pageSize, auditActionFilter || undefined)
 
   const totalPages = activeTab === 'usage'
     ? (usageData ? Math.ceil(usageData.total / pageSize) : 0)
@@ -57,40 +66,66 @@ export default function DataManagement() {
   const loading = activeTab === 'usage' ? usageLoading : auditLoading
   const error = activeTab === 'usage' ? usageError : auditError
 
+  const handleClearAll = async () => {
+    setClearing(true)
+    try {
+      if (activeTab === 'usage') {
+        await clearUsageLogs()
+        refetchUsage()
+      } else {
+        await clearAuditLogs()
+        refetchAudit()
+      }
+    } finally {
+      setClearing(false)
+      setShowClearConfirm(false)
+      setPage(1)
+    }
+  }
+
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100">{t('dataManagement.title')}</h1>
-        <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">{t('dataManagement.subtitle')}</p>
-      </div>
-
-      {/* Tabs */}
-      <div className="flex items-center gap-1 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-1 shadow-sm w-fit">
+    <div key={refreshKey} className="space-y-6 animate-fade-in">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100">{t('dataManagement.title')}</h1>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">{t('dataManagement.subtitle')}</p>
+        </div>
         <button
-          onClick={() => { setActiveTab('usage'); setPage(1) }}
-          className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-            activeTab === 'usage'
-              ? 'bg-teal-600 text-white'
-              : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700'
-          }`}
+          onClick={() => { setRefreshKey((k) => k + 1); refetchUsage(); refetchAudit() }}
+          disabled={usageLoading || auditLoading}
+          className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-xl text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 active:scale-[0.97] transition-all disabled:opacity-50"
         >
-          {t('dataManagement.tabs.usage')}
-        </button>
-        <button
-          onClick={() => { setActiveTab('audit'); setPage(1) }}
-          className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-            activeTab === 'audit'
-              ? 'bg-teal-600 text-white'
-              : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700'
-          }`}
-        >
-          {t('dataManagement.tabs.audit')}
+          <FiRefreshCw className={`w-4 h-4 ${usageLoading || auditLoading ? 'animate-spin' : ''}`} />
+          {t('dataManagement.refresh', '刷新')}
         </button>
       </div>
 
-      {/* Filters for usage logs */}
-      {activeTab === 'usage' && (
-        <div className="flex items-center gap-3">
+      {/* Tabs, Filters & Actions */}
+      <div className="flex items-center gap-3 flex-wrap">
+        <div className="flex items-center gap-1 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-1 shadow-sm">
+          <button
+            onClick={() => { setActiveTab('usage'); setPage(1) }}
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+              activeTab === 'usage'
+                ? 'bg-teal-600 text-white'
+                : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700'
+            }`}
+          >
+            {t('dataManagement.tabs.usage')}
+          </button>
+          <button
+            onClick={() => { setActiveTab('audit'); setPage(1) }}
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+              activeTab === 'audit'
+                ? 'bg-teal-600 text-white'
+                : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700'
+            }`}
+          >
+            {t('dataManagement.tabs.audit')}
+          </button>
+        </div>
+
+        {activeTab === 'usage' ? (
           <select
             value={actionFilter}
             onChange={(e) => { setActionFilter(e.target.value); setPage(1) }}
@@ -102,6 +137,69 @@ export default function DataManagement() {
             <option value="plan">{t('dataManagement.filters.plan')}</option>
             <option value="quiz">{t('dataManagement.filters.quiz')}</option>
           </select>
+        ) : (
+          <select
+            value={auditActionFilter}
+            onChange={(e) => { setAuditActionFilter(e.target.value); setPage(1) }}
+            className="px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg text-sm text-slate-700 dark:text-slate-300 focus:ring-2 focus:ring-teal-500 outline-none"
+          >
+            <option value="">{t('dataManagement.filters.allActions')}</option>
+            <option value="UPDATE_SYSTEM_CONFIG">{t('dataManagement.filters.updateSystemConfig')}</option>
+            <option value="UPDATE_USER_ROLE">{t('dataManagement.filters.updateUserRole')}</option>
+            <option value="DELETE_USER">{t('dataManagement.filters.deleteUser')}</option>
+            <option value="CREATE_BACKUP_TASK">{t('dataManagement.filters.createBackupTask')}</option>
+            <option value="UPDATE_BACKUP_TASK">{t('dataManagement.filters.updateBackupTask')}</option>
+            <option value="DELETE_BACKUP_TASK">{t('dataManagement.filters.deleteBackupTask')}</option>
+            <option value="EXECUTE_BACKUP">{t('dataManagement.filters.executeBackup')}</option>
+            <option value="RESTORE_BACKUP">{t('dataManagement.filters.restoreBackup')}</option>
+            <option value="CLEAR_USAGE_LOGS">{t('dataManagement.filters.clearUsageLogs')}</option>
+          </select>
+        )}
+
+        <div className="flex-1" />
+
+        <button
+          onClick={() => setShowClearConfirm(true)}
+          className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 border border-red-200 dark:border-red-800 transition-colors"
+        >
+          <FiTrash2 className="w-4 h-4" />
+          {t('dataManagement.clearAll')}
+        </button>
+      </div>
+
+      {/* Clear confirmation dialog */}
+      {showClearConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setShowClearConfirm(false)}>
+          <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-xl p-6 max-w-md w-full mx-4" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-full bg-red-50 dark:bg-red-900/20 flex items-center justify-center flex-shrink-0">
+                <FiAlertTriangle className="w-5 h-5 text-red-600 dark:text-red-400" />
+              </div>
+              <div>
+                <h3 className="text-base font-semibold text-slate-800 dark:text-slate-100">{t('dataManagement.clearConfirmTitle')}</h3>
+                <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">{t('dataManagement.clearConfirmMessage')}</p>
+              </div>
+            </div>
+            <p className="text-sm text-slate-600 dark:text-slate-300 mb-6">
+              {activeTab === 'usage' ? t('dataManagement.clearUsageWarning') : t('dataManagement.clearAuditWarning')}
+            </p>
+            <div className="flex items-center justify-end gap-3">
+              <button
+                onClick={() => setShowClearConfirm(false)}
+                className="px-4 py-2 rounded-lg text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+              >
+                {t('dataManagement.cancel')}
+              </button>
+              <button
+                onClick={handleClearAll}
+                disabled={clearing}
+                className="px-4 py-2 rounded-lg text-sm font-medium text-white bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+              >
+                {clearing && <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />}
+                {t('dataManagement.confirmClear')}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
@@ -163,7 +261,7 @@ export default function DataManagement() {
                         {log.metadata ?? '-'}
                       </td>
                       <td className="px-4 py-3 text-slate-500 dark:text-slate-400">
-                        {new Date(log.created_at).toLocaleString(i18n.language.startsWith('zh') ? 'zh-CN' : 'en-US')}
+                        {new Date(log.created_at * 1000).toLocaleString(i18n.language.startsWith('zh') ? 'zh-CN' : 'en-US')}
                       </td>
                     </tr>
                   ))
@@ -190,7 +288,7 @@ export default function DataManagement() {
                       </td>
                       <td className="px-4 py-3 text-slate-500 dark:text-slate-400 max-w-xs truncate">{log.details ?? '-'}</td>
                       <td className="px-4 py-3 text-slate-500 dark:text-slate-400">
-                        {new Date(log.created_at).toLocaleString(i18n.language.startsWith('zh') ? 'zh-CN' : 'en-US')}
+                        {new Date(log.created_at * 1000).toLocaleString(i18n.language.startsWith('zh') ? 'zh-CN' : 'en-US')}
                       </td>
                     </tr>
                   ))

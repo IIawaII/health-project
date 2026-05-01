@@ -3,9 +3,7 @@ import { findUserById } from '../../dao/user.dao';
 import { verifyToken } from '../../utils/auth';
 import { getLogger } from '../../utils/logger';
 import type { AppContext } from '../../utils/handler';
-import i18n from '../../../src/i18n';
-
-const t = i18n.t.bind(i18n);
+import { t } from '../../../shared/i18n/server';
 const logger = getLogger('Verify')
 
 export const onRequestGet = async (context: AppContext) => {
@@ -16,6 +14,7 @@ export const onRequestGet = async (context: AppContext) => {
     }
 
     let avatar: string | undefined;
+    let accountname: string | undefined;
     let email = tokenData.email;
     let dataKey: string | undefined = tokenData.dataKey;
 
@@ -24,6 +23,7 @@ export const onRequestGet = async (context: AppContext) => {
       const dbUser = await findUserById(context.env.DB, tokenData.userId);
       if (dbUser) {
         avatar = dbUser.avatar ?? undefined;
+        accountname = dbUser.accountname ?? undefined;
         email = dbUser.email;
         dataKey = dbUser.data_key ?? undefined;
       }
@@ -38,6 +38,7 @@ export const onRequestGet = async (context: AppContext) => {
         username: tokenData.username,
         email,
         avatar,
+        accountname,
         role: tokenData.role ?? 'user',
         dataKey,
       },

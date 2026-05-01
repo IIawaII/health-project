@@ -11,6 +11,7 @@ import { checkRateLimit } from './rateLimit'
 import { createUsageLog, getUserDailyUsageCount } from '../dao/log.dao'
 import { getSystemConfig } from '../dao/config.dao'
 import { getLogger } from './logger'
+import { t } from '../../shared/i18n/server'
 import type { Env } from './env'
 import type { TokenData } from './auth'
 
@@ -51,18 +52,18 @@ export function createAIHandler<T>(options: AIHandlerOptions<T>) {
     try {
       const tokenData = await verifyToken({ request: context.req.raw, env: context.env })
       if (!tokenData) {
-        return errorResponse('Unauthorized', 401)
+        return errorResponse(t('handler.unauthorized', '未授权，请先登录'), 401)
       }
 
       if (options.rateLimit) {
         const rateLimit = await checkRateLimit({
-          kv: context.env.AUTH_TOKENS,
+          env: context.env,
           key: `ai:${tokenData.userId}:${options.rateLimit.key}`,
           limit: options.rateLimit.limit,
           windowSeconds: options.rateLimit.windowSeconds,
         })
         if (!rateLimit.allowed) {
-          return errorResponse('Too many requests, please try again later', 429, {
+          return errorResponse(t('handler.tooManyRequests', '请求过于频繁，请稍后重试'), 429, {
             'Retry-After': String(rateLimit.resetAt - Math.floor(Date.now() / 1000)),
           })
         }
@@ -71,7 +72,7 @@ export function createAIHandler<T>(options: AIHandlerOptions<T>) {
       const body = await context.req.json<unknown>()
       const parseResult = options.schema.safeParse(body)
       if (!parseResult.success) {
-        const firstError = parseResult.error.errors[0]?.message || 'Invalid request parameters'
+        const firstError = parseResult.error.errors[0]?.message || t('handler.invalidParams', '请求参数错误')
         return errorResponse(firstError, 400)
       }
 
@@ -83,7 +84,7 @@ export function createAIHandler<T>(options: AIHandlerOptions<T>) {
           if (!isNaN(dailyLimit) && dailyLimit > 0) {
             const todayCount = await getUserDailyUsageCount(context.env.DB, tokenData.userId)
             if (todayCount >= dailyLimit) {
-              return errorResponse('Daily request limit reached, please try again tomorrow', 429)
+              return errorResponse(t('handler.dailyLimitReached', '每日请求上限已达到，请明天再试'), 429)
             }
           }
         }

@@ -1,7 +1,9 @@
 import type { ApiConfig } from '@/types'
 import i18n from '@/i18n'
+import { fetchWithTimeout } from '@/api/client'
 
-const STORAGE_KEY = 'health_ai_config_enc'
+const SERVER_CONFIG_KEY = 'health_ai_config_enc'
+const SERVER_CONFIG_IV_KEY = 'health_ai_config_iv'
 
 function hexToBytes(hex: string): Uint8Array {
   const pairs = hex.match(/.{2}/g)
@@ -26,6 +28,10 @@ function base64ToBytes(base64: string): Uint8Array {
   return bytes
 }
 
+function bytesToHex(bytes: Uint8Array): string {
+  return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('')
+}
+
 async function getCryptoKey(hexKey: string): Promise<CryptoKey> {
   const keyData = hexToBytes(hexKey)
   return crypto.subtle.importKey(
@@ -37,7 +43,7 @@ async function getCryptoKey(hexKey: string): Promise<CryptoKey> {
   )
 }
 
-async function encryptApiConfigData(config: ApiConfig, dataKey: string): Promise<string> {
+async function encryptApiConfigData(config: ApiConfig, dataKey: string): Promise<{ encrypted: string; iv: string }> {
   const key = await getCryptoKey(dataKey)
   const iv = crypto.getRandomValues(new Uint8Array(12))
   const encoder = new TextEncoder()
@@ -53,7 +59,10 @@ async function encryptApiConfigData(config: ApiConfig, dataKey: string): Promise
   combined.set(iv)
   combined.set(new Uint8Array(ciphertext), iv.length)
 
-  return bytesToBase64(combined)
+  return {
+    encrypted: bytesToBase64(combined),
+    iv: bytesToHex(iv),
+  }
 }
 
 async function decryptApiConfigData(encryptedBase64: string, dataKey: string): Promise<ApiConfig | null> {
@@ -82,17 +91,88 @@ async function decryptApiConfigData(encryptedBase64: string, dataKey: string): P
 }
 
 function getDataKey(): string | null {
-  return localStorage.getItem('user_data_key')
+  try { return sessionStorage.getItem('user_data_key'); } catch { return null; }
+}
+
+function setSessionDataKey(key: string): void {
+  sessionStorage.setItem('user_data_key', key)
+}
+
+async function fetchServerConfig(): Promise<{ encryptedConfig: string; configIv: string } | null> {
+  try {
+    const response = await fetchWithTimeout('/api/auth/ai-config', { timeout: 8000 })
+    if (!response.ok) return null
+    const data = await response.json() as { success?: boolean; data?: { encryptedConfig?: string; configIv?: string } }
+    if (data?.success && data?.data) {
+      return {
+        encryptedConfig: data.data.encryptedConfig ?? '',
+        configIv: data.data.configIv ?? '',
+      }
+    }
+    return null
+  } catch {
+    return null
+  }
+}
+
+async function saveConfigToServer(encryptedConfig: string, configIv: string): Promise<boolean> {
+  try {
+    const response = await fetchWithTimeout('/api/auth/ai-config', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ encryptedConfig, configIv }),
+      timeout: 8000,
+    })
+    return response.ok
+  } catch {
+    return false
+  }
+}
+
+async function deleteConfigFromServer(): Promise<boolean> {
+  try {
+    const response = await fetchWithTimeout('/api/auth/ai-config', {
+      method: 'DELETE',
+      timeout: 8000,
+    })
+    return response.ok
+  } catch {
+    return false
+  }
+}
+
+let configMemoryCache: ApiConfig | null = null
+
+export function initSessionDataKey(dataKey: string): void {
+  setSessionDataKey(dataKey)
+  configMemoryCache = null
 }
 
 export async function getStoredApiConfig(): Promise<ApiConfig | null> {
+  if (configMemoryCache) return configMemoryCache
+
   const dataKey = getDataKey()
   if (!dataKey) return null
 
-  const raw = localStorage.getItem(STORAGE_KEY)
-  if (!raw) return null
+  const serverConfig = await fetchServerConfig()
+  if (serverConfig?.encryptedConfig) {
+    const decrypted = await decryptApiConfigData(serverConfig.encryptedConfig, dataKey)
+    if (decrypted) {
+      configMemoryCache = decrypted
+      return decrypted
+    }
+  }
 
-  return decryptApiConfigData(raw, dataKey)
+  const localRaw = localStorage.getItem(SERVER_CONFIG_KEY)
+  if (localRaw) {
+    const decrypted = await decryptApiConfigData(localRaw, dataKey)
+    if (decrypted) {
+      configMemoryCache = decrypted
+      return decrypted
+    }
+  }
+
+  return null
 }
 
 export async function saveApiConfig(config: ApiConfig): Promise<void> {
@@ -100,15 +180,30 @@ export async function saveApiConfig(config: ApiConfig): Promise<void> {
   if (!dataKey) {
     throw new Error(i18n.t('apiConfig.errors.missingKey'))
   }
-  const encrypted = await encryptApiConfigData(config, dataKey)
-  localStorage.setItem(STORAGE_KEY, encrypted)
+
+  const { encrypted, iv } = await encryptApiConfigData(config, dataKey)
+
+  await saveConfigToServer(encrypted, iv)
+
+  localStorage.setItem(SERVER_CONFIG_KEY, encrypted)
+  localStorage.setItem(SERVER_CONFIG_IV_KEY, iv)
+
+  configMemoryCache = config
 }
 
-export function clearApiConfig(): void {
-  localStorage.removeItem(STORAGE_KEY)
+export async function clearApiConfig(): Promise<void> {
+  await deleteConfigFromServer()
+
+  localStorage.removeItem(SERVER_CONFIG_KEY)
+  localStorage.removeItem(SERVER_CONFIG_IV_KEY)
+  configMemoryCache = null
 }
 
 export async function hasStoredApiConfig(): Promise<boolean> {
   const cfg = await getStoredApiConfig()
   return !!cfg?.baseUrl && !!cfg?.apiKey && !!cfg?.model
+}
+
+export function clearConfigCache(): void {
+  configMemoryCache = null
 }

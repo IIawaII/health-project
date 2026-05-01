@@ -68,4 +68,41 @@ export default defineConfig({
     host: '0.0.0.0',
     allowedHosts: ['localhost', '127.0.0.1'],
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes('node_modules')) {
+            if (id.includes('react-dom') || id.includes('scheduler')) {
+              return 'vendor-react-dom'
+            }
+            if (id.includes('react') && !id.includes('react-router') && !id.includes('react-markdown') && !id.includes('react-i18next') && !id.includes('react-icons')) {
+              return 'vendor-react'
+            }
+            if (id.includes('recharts')) {
+              return 'vendor-recharts'
+            }
+            if (id.includes('react-markdown') || id.includes('rehype') || id.includes('remark') || id.includes('unified') || id.includes('micromark') || id.includes('mdast') || id.includes('remark-gfm')) {
+              return 'vendor-markdown'
+            }
+            if (id.includes('react-router')) {
+              return 'vendor-router'
+            }
+            if (id.includes('pdfjs-dist')) {
+              return 'vendor-pdf'
+            }
+            if (id.includes('react-i18next') || id.includes('i18next')) {
+              return 'vendor-i18n'
+            }
+            if (id.includes('react-icons')) {
+              return 'vendor-icons'
+            }
+            if (id.includes('hono') || id.includes('zod') || id.includes('drizzle-orm')) {
+              return 'vendor-shared'
+            }
+          }
+        },
+      },
+    },
+  },
 })

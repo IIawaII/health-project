@@ -12,10 +12,10 @@ import {
   cleanupExpiredVerificationCodes,
 } from '../../dao/verification.dao';
 import { getLogger } from '../../utils/logger';
+import { sendEmailViaSMTP } from '../../utils/smtp';
+import type { EmailQueueMessage } from '../../queues/types';
 import type { AppContext } from '../../utils/handler';
-import i18n from '../../../src/i18n';
-
-const t = i18n.t.bind(i18n);
+import { t } from '../../../shared/i18n/server';
 const logger = getLogger('SendCode')
 
 interface SendCodeRequest {
@@ -31,8 +31,6 @@ const SEND_CODE_COOLDOWN_SECONDS = 60;
 function generateCode(): string {
   const digits = new Uint8Array(6)
   crypto.getRandomValues(digits)
-  // 逐位取模 10 生成 0-9 的数字，在 256 与 10 不互质时存在极微小偏差，
-  // 但对于 6 位验证码场景完全可接受，远优于单次大范围模运算
   return Array.from(digits, (b) => (b % 10).toString()).join('')
 }
 
@@ -43,57 +41,11 @@ class EmailSendError extends Error {
   }
 }
 
-async function sendEmailViaResend(apiKey: string, resendDomain: string | undefined, to: string, code: string, type: string): Promise<void> {
-  const subject = type === 'register' ? 'Cloud Health - 注册验证码' : 'Cloud Health - 修改邮箱验证码';
-  const html = `
-    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; color: #333;">
-      <h2 style="color: #3b82f6;">Cloud Health</h2>
-      <p>您的验证码为：</p>
-      <div style="font-size: 32px; font-weight: bold; color: #3b82f6; letter-spacing: 4px; margin: 20px 0; padding: 15px; background: #f0f9ff; border-radius: 8px; text-align: center;">
-        ${code}
-      </div>
-      <p>验证码有效期为 <strong>3 分钟</strong>，请勿泄露给他人。</p>
-      <p style="color: #999; font-size: 12px; margin-top: 30px;">如非本人操作，请忽略此邮件。</p>
-    </div>
-  `;
-
-  const response = await fetch('https://api.resend.com/emails', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      from: `Cloud Health <noreply@${resendDomain || 'resend.dev'}>`,
-      to,
-      subject,
-      html,
-    }),
-  });
-
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({ message: 'Unknown error' })) as { message?: string };
-    const errMsg = typeof errorData.message === 'string' ? errorData.message : JSON.stringify(errorData);
-
-    if (response.status === 401 || response.status === 403) {
-      throw new EmailSendError(t('auth.verification.emailAuthFailed', '邮件服务认证失败，请联系管理员检查邮件 API 配置'), response.status);
-    }
-    if (response.status === 422 && errMsg.includes('invalid')) {
-      throw new EmailSendError(t('auth.verification.emailProviderUnsupported', '邮箱地址格式不受邮件服务商支持'), 422);
-    }
-    if (response.status >= 500) {
-      throw new EmailSendError(t('auth.verification.emailServiceUnavailable', '邮件服务商暂时不可用，请稍后重试'), response.status);
-    }
-    throw new EmailSendError(t('auth.verification.emailSendFailed', '邮件发送失败: {{reason}}', { reason: errMsg }), response.status);
-  }
-}
-
 export const onRequestPost = async (context: AppContext) => {
   try {
     const body = await context.req.json<SendCodeRequest>();
     const { email, type, turnstileToken, currentEmail } = body;
 
-    // 验证输入
     if (!email || !type) {
       return errorResponse(t('auth.verification.missingFields', '请填写所有必填字段'), 400);
     }
@@ -106,7 +58,6 @@ export const onRequestPost = async (context: AppContext) => {
       return errorResponse(t('auth.verification.invalidType', '无效的验证码类型'), 400);
     }
 
-    // 认证方式：注册使用 Turnstile，修改邮箱使用 Bearer Token
     if (type === 'register') {
       if (!turnstileToken) {
         return errorResponse(t('auth.register.errors.turnstileRequired', '请完成人机验证'), 400);
@@ -114,22 +65,19 @@ export const onRequestPost = async (context: AppContext) => {
       const turnstileError = await validateTurnstile(context, turnstileToken);
       if (turnstileError) return errorResponse(turnstileError, 400);
     } else if (type === 'update_email') {
-      // 验证 Bearer Token（复用 lib/auth 中的逻辑）
       const tokenData = await verifyToken({ request: context.req.raw, env: context.env });
       if (!tokenData) {
         return errorResponse(t('settings.errors.sessionExpired', '登录已过期'), 401);
       }
-      // 校验 currentEmail 是否属于当前登录用户
       const dbUser = await findUserById(context.env.DB, tokenData.userId);
       if (!dbUser || dbUser.email !== currentEmail) {
         return errorResponse(t('auth.verification.emailMismatch', '当前邮箱信息不匹配'), 403);
       }
     }
 
-    // IP 级别速率限制：每个 IP 每小时最多发送 10 次验证码（防止多邮箱滥发）
     const clientIP = context.req.header('CF-Connecting-IP') || 'unknown';
     const ipRateLimit = await checkRateLimit({
-      kv: context.env.VERIFICATION_CODES,
+      env: context.env,
       key: `ip:${clientIP}:send_code`,
       limit: 10,
       windowSeconds: 3600,
@@ -138,13 +86,11 @@ export const onRequestPost = async (context: AppContext) => {
       return errorResponse(t('auth.verification.tooManyRequests', '发送过于频繁，请稍后再试'), 429);
     }
 
-    // 检查发送频率限制（60秒冷却）—— 使用 D1 替代 KV，保证与验证码数据一致性
     const cooldownCheck = await checkVerificationCooldown(context.env.DB, type, email, SEND_CODE_COOLDOWN_SECONDS);
     if (!cooldownCheck.allowed) {
       return errorResponse(t('auth.verification.cooldown', '发送过于频繁，请 {{seconds}} 秒后再试', { seconds: cooldownCheck.remainingSeconds }), 429);
     }
 
-    // 注册类型：检查邮箱是否已被注册
     if (type === 'register') {
       const exists = await emailExists(context.env.DB, email);
       if (exists) {
@@ -152,7 +98,6 @@ export const onRequestPost = async (context: AppContext) => {
       }
     }
 
-    // 修改邮箱类型：检查新邮箱是否已被使用（排除当前用户自己的邮箱）
     if (type === 'update_email') {
       const exists = await emailExists(context.env.DB, email);
       if (exists) {
@@ -166,19 +111,16 @@ export const onRequestPost = async (context: AppContext) => {
       }
     }
 
-    // 清理过期验证码，防止表数据无限增长
     try {
       await cleanupExpiredVerificationCodes(context.env.DB);
     } catch {
-      // 清理失败不影响主流程，静默降级
+      // cleanup is non-critical, ignore errors
     }
 
-    // 检查是否已配置邮件服务
-    if (!context.env.RESEND_API_KEY) {
+    if (!context.env.SMTP_USER || !context.env.SMTP_PASS) {
       return errorResponse(t('auth.verification.emailServiceNotConfigured', '邮件服务未配置，请联系管理员'), 500);
     }
 
-    // 生成验证码
     const code = generateCode();
     const createdAt = Math.floor(Date.now() / 1000);
     const expiresAt = Math.floor(Date.now() / 1000) + VERIFICATION_CODE_TTL_SECONDS;
@@ -195,25 +137,77 @@ export const onRequestPost = async (context: AppContext) => {
       });
       codePersisted = true;
 
-      // 使用 D1 存储冷却时间，与验证码在同一数据库保证一致性
       await setVerificationCooldown(context.env.DB, type, email);
       cooldownPersisted = true;
 
-      await sendEmailViaResend(context.env.RESEND_API_KEY, context.env.RESEND_DOMAIN, email, code, type);
-    } catch (sendError) {
-      const rollbackTasks: Promise<unknown>[] = [];
-      if (codePersisted) {
-        rollbackTasks.push(deleteVerificationCode(context.env.DB, type, email));
-      }
-      if (cooldownPersisted) {
-        rollbackTasks.push(deleteVerificationCooldown(context.env.DB, type, email));
-      }
-      await Promise.allSettled(rollbackTasks);
+      const subject = type === 'register' ? 'Cloud Health - 注册验证码' : 'Cloud Health - 修改邮箱验证码';
+      const html = `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; color: #333;">
+          <h2 style="color: #3b82f6;">Cloud Health</h2>
+          <p>您的验证码为：</p>
+          <div style="font-size: 32px; font-weight: bold; color: #3b82f6; letter-spacing: 4px; margin: 20px 0; padding: 15px; background: #f0f9ff; border-radius: 8px; text-align: center;">
+            ${code}
+          </div>
+          <p>验证码有效期为 <strong>3 分钟</strong>，请勿泄露给他人。</p>
+          <p style="color: #999; font-size: 12px; margin-top: 30px;">如非本人操作，请忽略此邮件。</p>
+        </div>
+      `;
 
-      if (sendError instanceof EmailSendError) {
-        return errorResponse(sendError.message, sendError.statusCode >= 500 ? 503 : 400);
+      const queueMessage: EmailQueueMessage = {
+        type: 'send_email',
+        payload: {
+          to: email,
+          subject,
+          html,
+        },
+      };
+
+      if (context.env.EMAIL_QUEUE && context.env.ENVIRONMENT === 'production') {
+        await context.env.EMAIL_QUEUE.send(queueMessage);
+        logger.info('Email queued for sending', { email, type });
+      } else {
+        try {
+          const smtpConfig = {
+            host: context.env.SMTP_HOST || 'smtp.163.com',
+            port: parseInt(context.env.SMTP_PORT || '465', 10),
+            user: context.env.SMTP_USER!,
+            pass: context.env.SMTP_PASS!,
+            fromEmail: context.env.SMTP_USER!,
+            fromName: 'Cloud Health',
+          };
+          await sendEmailViaSMTP(smtpConfig, email, subject, html);
+          logger.info('Email sent directly (non-production)', { email, type });
+        } catch (smtpErr) {
+          logger.warn('SMTP direct send failed in development, skipping email delivery', {
+            error: smtpErr instanceof Error ? smtpErr.message : String(smtpErr),
+            email,
+            hint: 'cloudflare:sockets cannot connect to external TCP in local wrangler dev. Use --remote flag or deploy to test real email delivery.',
+          });
+        }
       }
-      throw sendError;
+    } catch (sendError) {
+      if (context.env.ENVIRONMENT !== 'production') {
+        logger.warn('Email send failed in development, continuing without email', {
+          error: sendError instanceof Error ? sendError.message : String(sendError),
+          email,
+        });
+      } else {
+        const rollbackTasks: Promise<unknown>[] = [];
+        if (codePersisted) {
+          rollbackTasks.push(deleteVerificationCode(context.env.DB, type, email));
+        }
+        if (cooldownPersisted) {
+          rollbackTasks.push(deleteVerificationCooldown(context.env.DB, type, email));
+        }
+        await Promise.allSettled(rollbackTasks);
+
+        if (sendError instanceof EmailSendError) {
+          return errorResponse(sendError.message, sendError.statusCode >= 500 ? 503 : 400);
+        }
+
+        logger.error('SMTP send failed', { error: sendError instanceof Error ? sendError.message : String(sendError), email });
+        return errorResponse(t('auth.verification.emailSendFailed', '邮件发送失败，请稍后重试'), 503);
+      }
     }
 
     return jsonResponse({

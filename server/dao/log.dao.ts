@@ -100,8 +100,7 @@ export async function getUsageStats(
     .from(usageLogs)
     .where(whereClause)
     .groupBy(usageLogs.action)
-    .orderBy(sql`count DESC`)
-  return result as { action: string; count: number }[]
+  return (result as { action: string; count: number }[]).sort((a, b) => b.count - a.count)
 }
 
 export async function getUserDailyUsageCount(
@@ -109,9 +108,12 @@ export async function getUserDailyUsageCount(
   userId: string,
   action?: string
 ): Promise<number> {
+  const now = new Date()
+  const todayStart = Math.floor(new Date(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()).getTime() / 1000)
+
   const conditions = [
     eq(usageLogs.user_id, userId),
-    sql`date(${usageLogs.created_at}, 'unixepoch') = date('now')`,
+    gte(usageLogs.created_at, todayStart),
   ]
   if (action) {
     conditions.push(eq(usageLogs.action, action))
@@ -124,6 +126,12 @@ export async function getUserDailyUsageCount(
   return result[0]?.count ?? 0
 }
 
+export async function clearAllUsageLogs(d1: D1Database): Promise<number> {
+  const drizzleDb = db(d1)
+  const result = await drizzleDb.delete(usageLogs).run()
+  return result.meta.changes
+}
+
 export async function getStats(d1: D1Database): Promise<{
   totalUsers: number
   todayNewUsers: number
@@ -132,17 +140,20 @@ export async function getStats(d1: D1Database): Promise<{
 }> {
   const drizzleDb = db(d1)
 
+  const now = new Date()
+  const todayStart = Math.floor(new Date(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()).getTime() / 1000)
+
   const [totalUsersResult, todayNewUsersResult, totalLogsResult, todayLogsResult] = await Promise.all([
     drizzleDb.select({ count: count() }).from(users),
     drizzleDb
       .select({ count: count() })
       .from(users)
-      .where(sql`date(${users.created_at}, 'unixepoch') = date('now')`),
+      .where(gte(users.created_at, todayStart)),
     drizzleDb.select({ count: count() }).from(usageLogs),
     drizzleDb
       .select({ count: count() })
       .from(usageLogs)
-      .where(sql`date(${usageLogs.created_at}, 'unixepoch') = date('now')`),
+      .where(gte(usageLogs.created_at, todayStart)),
   ])
 
   return {

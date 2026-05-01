@@ -1,22 +1,22 @@
 import { z } from 'zod';
 import { jsonResponse, errorResponse, parseLLMResult } from '../../utils/response';
 import { callLLM, createStreamResponse, resolveLLMConfig } from '../../utils/llm';
-import { SYSTEM_PROMPTS, USER_PROMPTS } from '../../utils/prompts';
+import { SYSTEM_PROMPTS, USER_PROMPTS, buildSystemPrompt } from '../../utils/prompts';
 import { createAIHandler } from '../../utils/handler';
 import { getLogger } from '../../utils/logger';
+import { t } from '../../../shared/i18n/server';
 
 const logger = getLogger('Analyze')
 
 const MAX_FILE_SIZE_MB = 5;
-/** 文本内容最大长度：500KB */
-const MAX_TEXT_CONTENT_LENGTH = 500 * 1024; // 500KB
+const MAX_TEXT_CONTENT_LENGTH = 500 * 1024;
 
 const analyzeSchema = z.object({
-  fileData: z.string().min(1, '请上传文件').max(15 * 1024 * 1024, '文件数据过大'),
-  fileType: z.enum(['image/png', 'image/jpeg', 'image/jpg', 'application/pdf', 'text/plain'], {
-    message: '不支持的文件类型，仅支持 PNG、JPG、PDF、TXT',
+  fileData: z.string().min(1, t('ai.validation.fileRequired', '请上传文件')).max(15 * 1024 * 1024, t('ai.validation.fileTooLarge', '文件数据过大')),
+  fileType: z.enum(['image/png', 'image/jpeg', 'image/jpg', 'text/plain'], {
+    message: t('ai.validation.unsupportedFileType', '不支持的文件类型，仅支持 PNG、JPG、TXT'),
   }),
-  fileName: z.string().min(1, '文件名不能为空').max(255, '文件名过长'),
+  fileName: z.string().min(1, t('ai.validation.fileNameRequired', '文件名不能为空')).max(255, t('ai.validation.fileNameTooLong', '文件名过长')),
   stream: z.boolean().optional(),
 });
 
@@ -27,7 +27,6 @@ export const onRequestPost = createAIHandler({
   async handler(data, context, _tokenData) {
     const { fileData, fileType, fileName, stream } = data;
 
-    // 文本内容长度校验（500KB 限制）
     const isText = fileType === 'text/plain';
     if (isText && fileData.length > MAX_TEXT_CONTENT_LENGTH) {
       logger.warn('Text content exceeds limit', {
@@ -35,7 +34,7 @@ export const onRequestPost = createAIHandler({
         contentLength: fileData.length,
         maxLength: MAX_TEXT_CONTENT_LENGTH,
       });
-      return errorResponse(`文本内容超过 ${MAX_TEXT_CONTENT_LENGTH / 1024}KB 限制，请缩短后重试`, 413);
+      return errorResponse(t('ai.errors.textContentTooLarge', '文本内容超过 {{max}}KB 限制，请缩短后重试', { max: MAX_TEXT_CONTENT_LENGTH / 1024 }), 413);
     }
 
     let dataSizeMB: number;
@@ -47,66 +46,39 @@ export const onRequestPost = createAIHandler({
       dataSizeMB = new Blob([fileData]).size / 1024 / 1024;
     }
     if (dataSizeMB > MAX_FILE_SIZE_MB) {
-      return errorResponse(`文件大小超过 ${MAX_FILE_SIZE_MB}MB 限制`, 413);
+      return errorResponse(t('ai.errors.fileSizeExceeded', '文件大小超过 {{max}}MB 限制', { max: MAX_FILE_SIZE_MB }), 413);
     }
 
     const isImage = fileType.startsWith('image/');
-    const isPdf = fileType === 'application/pdf';
 
-    if ((isImage || isPdf) && !fileData.startsWith('data:')) {
-      return errorResponse('文件内容应为 base64 data URL 格式', 400);
+    if (isImage && !fileData.startsWith('data:')) {
+      return errorResponse(t('ai.errors.invalidFileFormat', '文件内容应为 base64 data URL 格式'), 400);
     }
     if (isText && fileData.startsWith('data:')) {
-      return errorResponse('文本文件不应为 base64 编码', 400);
+      return errorResponse(t('ai.errors.textNotBase64', '文本文件不应为 base64 编码'), 400);
     }
 
-    const llmConfig = resolveLLMConfig(context.req.raw, context.env);
+    const llmConfig = await resolveLLMConfig(context.req.raw, context.env, _tokenData);
     if (!llmConfig) {
-      return errorResponse('未配置 AI API，请在设置中填写或联系管理员', 503);
+      return errorResponse(t('ai.errors.notConfigured', '未配置 AI API，请在设置中填写或联系管理员'), 503);
     }
     const { baseUrl, apiKey, model } = llmConfig;
 
-    // PDF 文件过大时，截断 base64 内容
-    let processedFileData = fileData;
-    let isPdfTruncated = false;
-    if (isPdf && fileData.length > 500_000) {
-      const commaIndex = fileData.indexOf(',');
-      if (commaIndex === -1) {
-        return errorResponse('PDF 文件格式不正确，缺少 data URL 分隔符', 400);
-      }
-      const prefix = fileData.slice(0, commaIndex + 1);
-      processedFileData = prefix + fileData.slice(prefix.length, prefix.length + 400_000);
-      isPdfTruncated = true;
-      logger.warn('PDF truncated', { originalLength: fileData.length, truncatedLength: processedFileData.length });
-    }
-
     const messages = isImage
       ? [
-          { role: 'system', content: SYSTEM_PROMPTS.REPORT_ANALYZER_IMAGE },
+          { role: 'system', content: buildSystemPrompt(SYSTEM_PROMPTS.REPORT_ANALYZER_IMAGE, context.req.raw) },
           {
             role: 'user',
             content: [
               { type: 'text', text: USER_PROMPTS.analyzeImage(fileName) },
-              { type: 'image_url', image_url: { url: processedFileData } },
+              { type: 'image_url', image_url: { url: fileData } },
             ],
           },
         ]
-      : isPdf
-        ? [
-            { role: 'system', content: SYSTEM_PROMPTS.REPORT_ANALYZER_TEXT },
-            { role: 'user', content: USER_PROMPTS.analyzeText(fileName, `[PDF 文件: ${fileName}，大小 ${dataSizeMB.toFixed(2)}MB]\n\n注：当前版本暂不支持直接解析 PDF 内容，请上传文本格式（.txt）或截图（.png/.jpg）进行分析。`) },
-          ]
-        : [
-            { role: 'system', content: SYSTEM_PROMPTS.REPORT_ANALYZER_TEXT },
-            { role: 'user', content: USER_PROMPTS.analyzeText(fileName, fileData) },
-          ];
-
-    if (isPdf && isPdfTruncated) {
-      const systemMsg = messages.find((m) => m.role === 'system');
-      if (systemMsg && typeof systemMsg.content === 'string') {
-        systemMsg.content += '\n\n【重要提示】用户上传的 PDF 文件因体积过大已被截断，仅提供了部分内容。请基于现有片段进行分析，并在结论中明确说明"分析基于文件的部分内容，建议上传文本格式或截图以获取完整解读"。';
-      }
-    }
+      : [
+          { role: 'system', content: buildSystemPrompt(SYSTEM_PROMPTS.REPORT_ANALYZER_TEXT, context.req.raw) },
+          { role: 'user', content: USER_PROMPTS.analyzeText(fileName, fileData) },
+        ];
 
     try {
       const response = await callLLM({
@@ -117,12 +89,27 @@ export const onRequestPost = createAIHandler({
         stream: stream ?? false,
         temperature: 0.5,
         max_tokens: 4000,
+        ssrfCache: context.env.SSRF_CACHE,
       });
 
       if (!response.ok) {
-        const err = await response.text();
-        logger.error('LLM request failed', { error: err.slice(0, 200) });
-        return errorResponse(`模型请求失败: ${err.slice(0, 200)}`, 502);
+        let errorDetail = ''
+        try {
+          errorDetail = await response.text()
+        } catch { logger.debug('Failed to read error response body from LLM') }
+        logger.error('LLM request failed', { status: response.status, detail: errorDetail, baseUrl, model })
+
+        if (response.status === 401) {
+          return errorResponse(t('ai.errors.apiKeyInvalid', 'API Key 无效或未授权，请检查 API Key 配置'), 401)
+        }
+        if (response.status === 404) {
+          return errorResponse(t('ai.errors.endpointNotFound', 'API 端点不存在，请检查 Base URL 是否正确'), 404)
+        }
+        if (response.status === 429) {
+          return errorResponse(t('ai.errors.rateLimited', 'API 请求频率超限，请稍后重试'), 429)
+        }
+
+        return errorResponse(t('ai.errors.modelFailed', '模型请求失败，请稍后重试'), 502)
       }
 
       if (stream) {
@@ -135,7 +122,7 @@ export const onRequestPost = createAIHandler({
       return jsonResponse({ result }, 200);
     } catch (err) {
       logger.error('Unexpected analyze error', { error: err instanceof Error ? err.message : String(err) });
-      return errorResponse('分析服务暂时不可用，请稍后重试或尝试上传较小的文件', 502);
+      return errorResponse(t('ai.errors.serviceUnavailable', '分析服务暂时不可用，请稍后重试或尝试上传较小的文件'), 502);
     }
   },
 });

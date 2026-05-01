@@ -5,6 +5,7 @@ CREATE TABLE IF NOT EXISTS verification_codes (
   purpose TEXT NOT NULL,
   email TEXT NOT NULL,
   code TEXT NOT NULL,
+  attempts INTEGER DEFAULT 0,
   created_at TEXT NOT NULL,
   expires_at TEXT NOT NULL,
   PRIMARY KEY (purpose, email)

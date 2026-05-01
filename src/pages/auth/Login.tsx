@@ -4,7 +4,8 @@ import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/hooks/useTheme';
 import { TurnstileWidget } from '@/components/common/TurnstileWidget';
-import { TURNSTILE_SITE_KEY, MAINTENANCE_MODE } from '@/config/app';
+import { TURNSTILE_SITE_KEY } from '@/config/app';
+import { useMaintenanceMode } from '@/hooks/useClientConfig';
 import { loginSchema } from '@shared/schemas';
 import LanguageSwitcher from '@/components/common/LanguageSwitcher';
 import {
@@ -38,7 +39,7 @@ export default function Login() {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
-  const isMaintenance = MAINTENANCE_MODE === 'true';
+  const { value: isMaintenance } = useMaintenanceMode();
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -64,11 +65,7 @@ export default function Login() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // 运维模式下普通用户直接跳转维护页面
-    if (isMaintenance) {
-      navigate('/maintenance', { replace: true });
-      return;
-    }
+    if (isLoading) return;
 
     const parseResult = loginSchema.safeParse({
       usernameOrEmail: formData.usernameOrEmail,
@@ -94,12 +91,13 @@ export default function Login() {
     if (result.success) {
       if (result.user?.role === 'admin') {
         navigate('/admin', { replace: true });
+      } else if (isMaintenance) {
+        navigate('/maintenance', { replace: true });
       } else {
         navigate(from, { replace: true });
       }
     } else {
       setError(result.error || t('auth.errors.loginFailed'));
-      // 重置 Turnstile token 并强制重新渲染验证组件
       setTurnstileToken('');
       setTurnstileKey(prev => prev + 1);
     }
@@ -182,7 +180,7 @@ export default function Login() {
                     value={formData.password}
                     onChange={handleChange}
                     placeholder={t('auth.login.passwordPlaceholder')}
-                    maxLength={128}
+                    maxLength={30}
                     className="w-full pl-10 pr-12 py-2.5 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500"
                     disabled={isLoading}
                   />

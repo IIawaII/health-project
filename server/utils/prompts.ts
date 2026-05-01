@@ -1,44 +1,54 @@
-/**
- * 集中管理所有 AI Prompt 模板
- * 便于维护、调试和后续国际化
- */
+import { getLocaleFromRequest, getLanguageName } from '../../shared/i18n/server'
+
+function getLanguageInstruction(locale: string): string {
+  const langName = getLanguageName(locale)
+  if (locale.startsWith('zh')) {
+    return '请使用中文回答。'
+  }
+  return `Please respond in ${langName}.`
+}
+
+export function buildSystemPrompt(basePrompt: string, request: Request): string {
+  const locale = getLocaleFromRequest(request)
+  const langInstruction = getLanguageInstruction(locale)
+  return `${basePrompt}\n\n${langInstruction}`
+}
 
 export const SYSTEM_PROMPTS = {
-  /** 智能对话：健康顾问 */
   HEALTH_ADVISOR:
-    '你是一位专业的健康管理顾问，拥有丰富的医学和营养学知识。你可以回答用户的健康问题，提供科学的健康建议。回答时请保持专业、友善，并提醒用户严重健康问题应咨询医生。请使用中文回答。',
+    '你是一位专业的健康管理顾问，拥有丰富的医学和营养学知识。你可以回答用户的健康问题，提供科学的健康建议。回答时请保持专业、友善，并提醒用户严重健康问题应咨询医生。',
 
-  /** 报告分析：图像 */
   REPORT_ANALYZER_IMAGE:
-    '你是一位专业的健康管理顾问和医学分析师。请仔细分析用户上传的医疗健康相关图像，提供结构化的分析结果。请使用中文回答。',
+    '你是一位专业的健康管理顾问和医学分析师。请仔细分析用户上传的医疗健康相关图像，提供结构化的分析结果。',
 
-  /** 报告分析：文本/PDF */
   REPORT_ANALYZER_TEXT:
-    '你是一位专业的健康管理顾问和医学分析师。请仔细分析用户上传的健康报告文本内容，提供结构化的分析结果。请使用中文回答。',
+    '你是一位专业的健康管理顾问和医学分析师。请仔细分析用户上传的健康报告文本内容，提供结构化的分析结果。',
 
-  /** 计划生成 */
   PLAN_GENERATOR:
-    '你是一位资深的健康管理师和营养学专家，擅长根据用户个人情况制定科学、可执行的健康管理计划。请使用中文回答。',
+    '你是一位资深的健康管理师和营养学专家，擅长根据用户个人情况制定科学、可执行的健康管理计划。',
 
-  /** 问答生成 */
   QUIZ_GENERATOR:
     '你是一位健康知识教育专家，擅长生成有趣且富有教育意义的健康知识问答题。请严格按照用户要求的 JSON 格式输出，不要包含 markdown 代码块标记或其他额外文字。',
 } as const
 
 export const USER_PROMPTS = {
-  /** 分析图像报告 */
-  analyzeImage: (fileName: string): string =>
-    `请分析这份名为"${fileName}"的健康报告/检测图像。请从以下几个方面进行分析：\n1. 报告概述：这份报告/检测的主要内容是什么\n2. 关键指标：列出关键健康指标及其数值\n3. 异常分析：指出任何异常或需要关注的指标\n4. 健康建议：基于分析结果给出具体的健康改善建议\n5. 后续行动：建议下一步需要做什么（如复查、就医等）\n\n请以 Markdown 格式输出，结构清晰。`,
+  analyzeImage: (fileName: string, locale?: string): string => {
+    const langSuffix = locale?.startsWith('zh') !== false ? '' : '\n\nPlease respond in English.'
+    return `请分析这份名为"${fileName}"的健康报告/检测图像。请从以下几个方面进行分析：\n1. 报告概述：这份报告/检测的主要内容是什么\n2. 关键指标：列出关键健康指标及其数值\n3. 异常分析：指出任何异常或需要关注的指标\n4. 健康建议：基于分析结果给出具体的健康改善建议\n5. 后续行动：建议下一步需要做什么（如复查、就医等）\n\n请以 Markdown 格式输出，结构清晰。${langSuffix}`
+  },
 
-  /** 分析文本/PDF 报告 */
-  analyzeText: (fileName: string, content: string): string =>
-    `请分析这份名为"${fileName}"的健康报告。报告内容如下：\n\n${content}\n\n请从以下几个方面进行分析：\n1. 报告概述：这份报告的主要内容是什么\n2. 关键指标：列出关键健康指标及其数值\n3. 异常分析：指出任何异常或需要关注的指标\n4. 健康建议：基于分析结果给出具体的健康改善建议\n5. 后续行动：建议下一步需要做什么（如复查、就医等）\n\n请以 Markdown 格式输出，结构清晰。`,
+  analyzeText: (fileName: string, content: string, locale?: string): string => {
+    const langSuffix = locale?.startsWith('zh') !== false ? '' : '\n\nPlease respond in English.'
+    return `请分析这份名为"${fileName}"的健康报告。报告内容如下：\n\n${content}\n\n请从以下几个方面进行分析：\n1. 报告概述：这份报告的主要内容是什么\n2. 关键指标：列出关键健康指标及其数值\n3. 异常分析：指出任何异常或需要关注的指标\n4. 健康建议：基于分析结果给出具体的健康改善建议\n5. 后续行动：建议下一步需要做什么（如复查、就医等）\n\n请以 Markdown 格式输出，结构清晰。${langSuffix}`
+  },
 
-  /** 生成健康计划 */
-  generatePlan: (formData: Record<string, unknown>): string =>
-    `你是一位资深的健康管理师和营养学专家。请根据以下用户信息，为其量身定制一份详细的健康管理计划。\n\n用户信息：\n${JSON.stringify(formData, null, 2)}\n\n请生成一份结构化的健康计划，包含以下内容（使用 Markdown 格式）：\n\n# 个性化健康管理计划\n\n## 1. 用户健康档案摘要\n简要总结用户的基本情况和健康目标。\n\n## 2. 饮食管理方案\n- 每日饮食原则\n- 推荐食物清单\n- 需避免的食物\n- 示例一日食谱（早餐、午餐、晚餐、加餐）\n\n## 3. 运动锻炼计划\n- 每周运动安排（具体天数、时长、运动类型）\n- 不同阶段的强度调整\n- 运动注意事项\n\n## 4. 作息与生活习惯建议\n- 睡眠管理\n- 压力调节\n- 日常健康习惯\n\n## 5. 阶段性目标与监测\n- 短期目标（1个月内）\n- 中期目标（3个月内）\n- 长期目标（半年以上）\n- 建议监测的指标\n\n## 6. 注意事项与禁忌\n列出用户需要特别注意的健康事项。\n\n请确保计划具有可执行性，内容专业且易于理解。`,
+  generatePlan: (formData: Record<string, unknown>, locale?: string): string => {
+    const langSuffix = locale?.startsWith('zh') !== false ? '' : '\n\nPlease respond in English.'
+    return `你是一位资深的健康管理师和营养学专家。请根据以下用户信息，为其量身定制一份详细的健康管理计划。\n\n用户信息：\n${JSON.stringify(formData, null, 2)}\n\n请生成一份结构化的健康计划，包含以下内容（使用 Markdown 格式）：\n\n# 个性化健康管理计划\n\n## 1. 用户健康档案摘要\n简要总结用户的基本情况和健康目标。\n\n## 2. 饮食管理方案\n- 每日饮食原则\n- 推荐食物清单\n- 需避免的食物\n- 示例一日食谱（早餐、午餐、晚餐、加餐）\n\n## 3. 运动锻炼计划\n- 每周运动安排（具体天数、时长、运动类型）\n- 不同阶段的强度调整\n- 运动注意事项\n\n## 4. 作息与生活习惯建议\n- 睡眠管理\n- 压力调节\n- 日常健康习惯\n\n## 5. 阶段性目标与监测\n- 短期目标（1个月内）\n- 中期目标（3个月内）\n- 长期目标（半年以上）\n- 建议监测的指标\n\n## 6. 注意事项与禁忌\n列出用户需要特别注意的健康事项。\n\n请确保计划具有可执行性，内容专业且易于理解。${langSuffix}`
+  },
 
-  /** 生成问答题目 */
-  generateQuiz: (category?: string, difficulty?: string): string =>
-    `请生成5道健康知识问答题，类别：${category || '综合健康知识'}，难度：${difficulty || '中等'}。\n\n要求：\n1. 每道题包含4个选项（A、B、C、D）\n2. 标明每道题的正确答案索引（0=A, 1=B, 2=C, 3=D）\n3. 为每道题提供简要的知识点解析\n\n请严格按照以下 JSON 格式输出，不要包含其他文字：\n{\n  "questions": [\n    {\n      "question": "题目内容",\n      "options": ["选项A", "选项B", "选项C", "选项D"],\n      "correctAnswer": 0,\n      "explanation": "解析内容"\n    }\n  ]\n}`,
+  generateQuiz: (category?: string, difficulty?: string, locale?: string): string => {
+    const langSuffix = locale?.startsWith('zh') !== false ? '' : '\n\nPlease generate the quiz in English.'
+    return `请生成5道健康知识问答题，类别：${category || '综合健康知识'}，难度：${difficulty || '中等'}。\n\n要求：\n1. 每道题包含4个选项（A、B、C、D）\n2. 标明每道题的正确答案索引（0=A, 1=B, 2=C, 3=D）\n3. 为每道题提供简要的知识点解析\n\n请严格按照以下 JSON 格式输出，不要包含其他文字：\n{\n  "questions": [\n    {\n      "question": "题目内容",\n      "options": ["选项A", "选项B", "选项C", "选项D"],\n      "correctAnswer": 0,\n      "explanation": "解析内容"\n    }\n  ]\n}${langSuffix}`
+  },
 } as const

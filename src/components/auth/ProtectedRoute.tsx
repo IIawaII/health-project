@@ -2,6 +2,7 @@ import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTranslation } from 'react-i18next'
 import { FiLoader } from 'react-icons/fi';
+import { useMaintenanceMode } from '@/hooks/useClientConfig';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -11,9 +12,9 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
   const { t } = useTranslation();
   const { isAuthenticated, isLoading, user } = useAuth();
   const location = useLocation();
+  const { value: isMaintenance, initialized } = useMaintenanceMode();
 
-  if (isLoading) {
-    // 显示加载状态，避免受保护内容一闪而过导致组件快速 mount/unmount
+  if (isLoading || !initialized) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background-secondary">
         <div className="flex flex-col items-center gap-3">
@@ -25,13 +26,15 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
   }
 
   if (!isAuthenticated) {
-    // 保存当前路径，登录后跳转回来
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
-  // 管理员不允许访问前台页面，强制重定向到后台
   if (user?.role === 'admin') {
     return <Navigate to="/admin" replace />;
+  }
+
+  if (isMaintenance) {
+    return <Navigate to="/maintenance" replace />;
   }
 
   return <>{children}</>;

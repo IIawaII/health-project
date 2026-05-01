@@ -1,8 +1,8 @@
-import { useNavigate, Link } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useTheme } from '@/hooks/useTheme'
 import LanguageSwitcher from '@/components/common/LanguageSwitcher'
-import { FiSettings, FiMoon, FiSun, FiArrowLeft, FiShield } from 'react-icons/fi'
+import { FiSettings, FiMoon, FiSun, FiArrowLeft } from 'react-icons/fi'
 
 export default function MaintenancePage() {
   const navigate = useNavigate()
@@ -40,23 +40,13 @@ export default function MaintenancePage() {
             {t('maintenance.status')}
           </div>
 
-          <div className="flex flex-col gap-3">
-            <button
-              onClick={() => navigate(-1)}
-              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-700 hover:bg-slate-100 dark:hover:bg-slate-600 transition-all"
-            >
-              <FiArrowLeft className="w-4 h-4" />
-              {t('maintenance.goBack')}
-            </button>
-
-            <Link
-              to="/login?admin=true"
-              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-all"
-            >
-              <FiShield className="w-4 h-4" />
-              {t('maintenance.adminLogin')}
-            </Link>
-          </div>
+          <button
+            onClick={() => navigate(-1)}
+            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-700 hover:bg-slate-100 dark:hover:bg-slate-600 transition-all"
+          >
+            <FiArrowLeft className="w-4 h-4" />
+            {t('maintenance.goBack')}
+          </button>
         </div>
       </div>
     </div>

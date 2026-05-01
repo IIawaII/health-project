@@ -1,0 +1,38 @@
+# Cloudflare Workers 本地开发环境变量
+# 复制此文件为 .dev.vars 并填入实际值
+
+# Turnstile （必填，人机验证）
+TURNSTILE_SITE_KEY=your-turnstile-site-key
+TURNSTILE_SECRET_KEY=your-turnstile-secret-key
+
+# Upstash Redis（必填，用于分布式速率限制）
+UPSTASH_REST_URL=https://your-redis-instance.upstash.io
+UPSTASH_REST_TOKEN=your-upstash-token
+
+# SMTP 邮件服务（必填，用于发送验证码）
+SMTP_HOST=smtp.your-smtp-host.com
+SMTP_PORT=465
+SMTP_USER=your-email@your-email.com
+SMTP_PASS=your-smtp-pass
+
+# 管理员账户（必填，生产环境通过 GitHub Actions vars 注入）
+ADMIN_USERNAME=your-admin-username
+ADMIN_PASSWORD=your-admin-password
+
+# AI 服务配置（可选，作为服务端兜底配置）
+AI_API_KEY=your-ai-api-key
+AI_BASE_URL=your-ai-base-url
+AI_MODEL=your-ai-model
+
+# 允许的跨域来源（可选，默认为当前域名）
+ALLOWED_ORIGINS=your-allowed-origins
+
+# 路由配置
+ROUTE_PATTERN=your-route-pattern-name
+ROUTE_ZONE_NAME=your-route-zone-name
+
+# SMTP 超时时间（毫秒，可选，默认 15000）
+SMTP_TIMEOUT_MS=15000
+
+# 运行环境（必填，development | production）
+ENVIRONMENT=development

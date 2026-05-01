@@ -1,5 +1,6 @@
 import { Component, type ReactNode } from 'react'
 import { FiAlertTriangle } from 'react-icons/fi'
+import i18n from '@/i18n'
 
 interface Props {
   children: ReactNode
@@ -8,6 +9,31 @@ interface Props {
 interface State {
   hasError: boolean
   error?: Error
+}
+
+function reportClientError(error: Error, errorInfo: React.ErrorInfo): void {
+  try {
+    const payload = {
+      message: error.message,
+      stack: error.stack?.slice(0, 1000),
+      componentStack: errorInfo.componentStack?.slice(0, 1000),
+      url: window.location.href,
+      userAgent: navigator.userAgent,
+    }
+    if (navigator.sendBeacon) {
+      const blob = new Blob([JSON.stringify(payload)], { type: 'application/json' })
+      navigator.sendBeacon('/api/client-error', blob)
+    } else {
+      fetch('/api/client-error', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+        keepalive: true,
+      }).catch(() => {})
+    }
+  } catch {
+    // 上报失败不影响用户
+  }
 }
 
 export class ErrorBoundary extends Component<Props, State> {
@@ -22,6 +48,7 @@ export class ErrorBoundary extends Component<Props, State> {
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
     console.error('[ErrorBoundary]', error, errorInfo)
+    reportClientError(error, errorInfo)
   }
 
   handleReset = () => {
@@ -38,12 +65,12 @@ export class ErrorBoundary extends Component<Props, State> {
               <FiAlertTriangle className="w-8 h-8 text-red-500" />
             </div>
             <h2 className="text-xl font-semibold text-foreground mb-2">
-              页面出现错误
+              {i18n.t('errorBoundary.title', '页面出现错误')}
             </h2>
             <p className="text-sm text-foreground-muted mb-6">
-              很抱歉，应用遇到了意外问题。您可以尝试刷新页面恢复。
+              {i18n.t('errorBoundary.message', '很抱歉，应用遇到了意外问题。您可以尝试刷新页面恢复。')}
             </p>
-            {this.state.error && (
+            {this.state.error && import.meta.env.DEV && (
               <div className="mb-6 p-3 bg-gray-50 rounded-lg text-left">
                 <p className="text-xs text-foreground-subtle font-mono break-all">
                   {this.state.error.message}
@@ -54,7 +81,7 @@ export class ErrorBoundary extends Component<Props, State> {
               onClick={this.handleReset}
               className="w-full px-4 py-2.5 bg-primary-600 hover:bg-primary-700 text-white text-sm font-medium rounded-lg transition-colors"
             >
-              刷新页面
+              {i18n.t('errorBoundary.refresh', '刷新页面')}
             </button>
           </div>
         </div>

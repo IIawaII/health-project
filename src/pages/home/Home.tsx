@@ -11,7 +11,6 @@ import {
   FiZap,
   FiHeart,
 } from 'react-icons/fi'
-import { WELCOME_MESSAGE } from '@/config/app'
 
 export default function Home() {
   const { t } = useTranslation()
@@ -75,11 +74,6 @@ export default function Home() {
             {t('home.heroTitle2')}
           </span>
         </h1>
-        {WELCOME_MESSAGE && (
-          <p className="text-lg text-primary-600 dark:text-primary-400 font-medium max-w-2xl mx-auto mb-3">
-            {WELCOME_MESSAGE}
-          </p>
-        )}
         <p className="text-lg text-foreground-muted dark:text-foreground-dark-muted max-w-2xl mx-auto leading-relaxed">
           {t('home.description')}
         </p>

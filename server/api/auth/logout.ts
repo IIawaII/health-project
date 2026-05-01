@@ -1,11 +1,10 @@
 import { deleteToken, deleteRefreshToken } from '../../utils/auth';
 import { jsonResponse, errorResponse } from '../../utils/response';
 import { getCookie, serializeCookie, getSecureCookieOptions } from '../../utils/cookie';
+import { getCsrfCookieName } from '../../middleware/csrf';
 import { getLogger } from '../../utils/logger';
 import type { AppContext } from '../../utils/handler';
-import i18n from '../../../src/i18n';
-
-const t = i18n.t.bind(i18n);
+import { t } from '../../../shared/i18n/server';
 const logger = getLogger('Logout')
 
 export const onRequestPost = async (context: AppContext) => {
@@ -33,15 +32,15 @@ export const onRequestPost = async (context: AppContext) => {
     }
 
     const cookieOptions = getSecureCookieOptions(context.req.raw);
+    const cookies = [
+      serializeCookie('auth_token', '', { ...cookieOptions, maxAge: 0 }),
+      serializeCookie('auth_refresh_token', '', { ...cookieOptions, maxAge: 0 }),
+      serializeCookie(getCsrfCookieName(), '', { ...cookieOptions, httpOnly: false, sameSite: 'Strict', maxAge: 0 }),
+    ]
     return jsonResponse({
       success: true,
       message: t('auth.logout.success'),
-    }, 200, {
-      'Set-Cookie': [
-        serializeCookie('auth_token', '', { ...cookieOptions, maxAge: 0 }),
-        serializeCookie('auth_refresh_token', '', { ...cookieOptions, maxAge: 0 }),
-      ].join(', '),
-    });
+    }, 200, undefined, cookies.map((c) => `Set-Cookie: ${c}`));
   } catch (error) {
     logger.error('Logout error', { error: error instanceof Error ? error.message : String(error) });
     return errorResponse(t('auth.logout.error'), 500);

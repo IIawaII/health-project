@@ -2,8 +2,9 @@
  * Metrics DAO - 性能监控数据查询
  */
 
-import { count, avg, max, min, sql, gte, lte } from 'drizzle-orm'
+import { count, avg, max, min, sql, gte, lte, inArray } from 'drizzle-orm'
 import { getDb, requestMetrics, type DbClient } from '../db'
+import { getLogger } from '../utils/logger'
 
 function db(d1: D1Database): DbClient {
   return getDb(d1)
@@ -62,14 +63,14 @@ export async function getRequestTrend(
   const since = Math.floor(Date.now() / 1000) - hours * 3600
   const result = await db(d1)
     .select({
-      hour: sql<string>`strftime('%Y-%m-%d %H:00', ${requestMetrics.created_at}, 'unixepoch')`,
+      hour: sql<string>`strftime('%Y-%m-%d %H:00', ${requestMetrics.created_at}, 'unixepoch', '+8 hours')`,
       count: count(),
       avgLatency: avg(requestMetrics.latency_ms).mapWith(Number),
     })
     .from(requestMetrics)
     .where(gte(requestMetrics.created_at, since))
-    .groupBy(sql`strftime('%Y-%m-%d %H:00', ${requestMetrics.created_at}, 'unixepoch')`)
-    .orderBy(sql`hour ASC`)
+    .groupBy(sql`strftime('%Y-%m-%d %H:00', ${requestMetrics.created_at}, 'unixepoch', '+8 hours')`)
+    .orderBy(sql`strftime('%Y-%m-%d %H:00', ${requestMetrics.created_at}, 'unixepoch', '+8 hours') ASC`)
   return result.map((r) => ({
     hour: r.hour,
     count: r.count,
@@ -93,14 +94,13 @@ export async function getPathStats(
     .from(requestMetrics)
     .where(gte(requestMetrics.created_at, since))
     .groupBy(requestMetrics.path)
-    .orderBy(sql`count DESC`)
     .limit(20)
   return result.map((r) => ({
     path: r.path,
     count: r.count,
     avgLatency: Math.round(r.avgLatency),
     errorCount: Number(r.errorCount),
-  }))
+  })).sort((a, b) => b.count - a.count)
 }
 
 /** 获取状态码分布 */
@@ -117,11 +117,10 @@ export async function getStatusCodeDistribution(
     .from(requestMetrics)
     .where(gte(requestMetrics.created_at, since))
     .groupBy(requestMetrics.status_code)
-    .orderBy(sql`count DESC`)
   return result.map((r) => ({
     statusCode: r.statusCode,
     count: r.count,
-  }))
+  })).sort((a, b) => b.count - a.count)
 }
 
 /** 获取最近的错误日志 */
@@ -148,8 +147,31 @@ export async function getRecentErrors(
 /** 清理过期监控数据（保留 7 天） */
 export async function cleanupOldMetrics(d1: D1Database): Promise<void> {
   const cutoff = Math.floor(Date.now() / 1000) - 7 * 86400
-  await db(d1)
-    .delete(requestMetrics)
-    .where(lte(requestMetrics.created_at, cutoff))
-    .run()
+  const BATCH_SIZE = 500
+  let totalDeleted = 0
+
+  for (let i = 0; i < 20; i++) {
+    const rows = await db(d1)
+      .select({ id: requestMetrics.id })
+      .from(requestMetrics)
+      .where(lte(requestMetrics.created_at, cutoff))
+      .limit(BATCH_SIZE)
+      .all()
+
+    if (rows.length === 0) break
+
+    await db(d1)
+      .delete(requestMetrics)
+      .where(inArray(requestMetrics.id, rows.map((r) => r.id)))
+      .run()
+
+    totalDeleted += rows.length
+
+    if (rows.length < BATCH_SIZE) break
+  }
+
+  if (totalDeleted > 0) {
+    const logger = getLogger('Metrics')
+    logger.info('Metrics cleanup completed', { totalDeleted })
+  }
 }

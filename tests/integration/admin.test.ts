@@ -307,10 +307,10 @@ describe('db 管理函数', () => {
 
   describe('系统配置', () => {
     it('应设置和获取配置', async () => {
-      await setSystemConfig(db, 'site_name', 'Cloud Health')
-      const config = await getSystemConfig(db, 'site_name')
+      await setSystemConfig(db, 'maintenance_mode', 'false')
+      const config = await getSystemConfig(db, 'maintenance_mode')
       expect(config).not.toBeNull()
-      expect(config?.value).toBe('Cloud Health')
+      expect(config?.value).toBe('false')
     })
 
     it('应获取所有配置', async () => {
@@ -358,9 +358,9 @@ describe('admin API handlers', () => {
 
   async function setupAdminToken() {
     await saveToken(kv, 'admin-token', {
-      userId: 'admin-1',
+      userId: 'system-admin',
       username: 'admin',
-      email: 'admin@test.com',
+      email: 'admin@system.local',
       role: 'admin',
       createdAt: new Date().toISOString(),
     })
@@ -425,7 +425,9 @@ describe('admin API handlers', () => {
         email: 'alice@example.com',
         password_hash: 'hash1',
         avatar: null,
+        accountname: null,
         role: 'user',
+        data_key: null,
         created_at: ts,
         updated_at: ts,
       })
@@ -488,7 +490,9 @@ describe('admin API handlers', () => {
         email: 'alice@example.com',
         password_hash: 'hash1',
         avatar: null,
+        accountname: null,
         role: 'user',
+        data_key: null,
         created_at: ts,
         updated_at: ts,
       })
@@ -542,7 +546,7 @@ describe('admin API handlers', () => {
       const request = new Request('http://localhost/api/admin/config', {
         method: 'PUT',
         headers: { Authorization: 'Bearer admin-token', 'Content-Type': 'application/json' },
-        body: JSON.stringify({ site_name: 'New Cloud Health' }),
+        body: JSON.stringify({ maintenance_mode: 'true' }),
       })
       const context = createMockContext(kv, db, {
         adminToken: 'admin-token',
@@ -551,6 +555,177 @@ describe('admin API handlers', () => {
       })
       const response = await configPutHandler(context as never)
       expect(response.status).toBe(200)
+    })
+  })
+
+  describe('权限控制 - system-admin 最高权限', () => {
+    async function setupNonSystemAdminToken() {
+      await saveToken(kv, 'non-sys-admin-token', {
+        userId: 'admin-2',
+        username: 'subadmin',
+        email: 'sub@test.com',
+        role: 'admin',
+        createdAt: new Date().toISOString(),
+      })
+    }
+
+    async function setupSystemAdminToken() {
+      await saveToken(kv, 'sys-admin-token', {
+        userId: 'system-admin',
+        username: 'admin',
+        email: 'admin@system.local',
+        role: 'admin',
+        createdAt: new Date().toISOString(),
+      })
+    }
+
+    it('非 system-admin 不能修改 system-admin 的权限', async () => {
+      await setupNonSystemAdminToken()
+      const ts = Math.floor(Date.now() / 1000)
+      db.getTable('users').set('system-admin', {
+        id: 'system-admin',
+        username: 'admin',
+        email: 'admin@system.local',
+        password_hash: 'hash',
+        avatar: null,
+        accountname: null,
+        role: 'admin',
+        data_key: null,
+        created_at: ts,
+        updated_at: ts,
+      })
+
+      const request = new Request('http://localhost/api/admin/users/system-admin', {
+        method: 'PATCH',
+        headers: { Authorization: 'Bearer non-sys-admin-token', 'Content-Type': 'application/json' },
+        body: JSON.stringify({ role: 'user' }),
+      })
+      const context = createMockContext(kv, db, {
+        adminToken: 'non-sys-admin-token',
+        request,
+        params: { id: 'system-admin' },
+      })
+      const response = await apiUpdateUserRole(context as never)
+      expect(response.status).toBe(403)
+    })
+
+    it('非 system-admin 不能授予管理员权限', async () => {
+      await setupNonSystemAdminToken()
+      const ts = Math.floor(Date.now() / 1000)
+      db.getTable('users').set('user-x', {
+        id: 'user-x',
+        username: 'testuser',
+        email: 'test@test.com',
+        password_hash: 'hash',
+        avatar: null,
+        accountname: null,
+        role: 'user',
+        data_key: null,
+        created_at: ts,
+        updated_at: ts,
+      })
+
+      const request = new Request('http://localhost/api/admin/users/user-x', {
+        method: 'PATCH',
+        headers: { Authorization: 'Bearer non-sys-admin-token', 'Content-Type': 'application/json' },
+        body: JSON.stringify({ role: 'admin' }),
+      })
+      const context = createMockContext(kv, db, {
+        adminToken: 'non-sys-admin-token',
+        request,
+        params: { id: 'user-x' },
+      })
+      const response = await apiUpdateUserRole(context as never)
+      expect(response.status).toBe(403)
+    })
+
+    it('非 system-admin 不能取消其他管理员的权限', async () => {
+      await setupNonSystemAdminToken()
+      const ts = Math.floor(Date.now() / 1000)
+      db.getTable('users').set('admin-3', {
+        id: 'admin-3',
+        username: 'otheradmin',
+        email: 'other@test.com',
+        password_hash: 'hash',
+        avatar: null,
+        accountname: null,
+        role: 'admin',
+        data_key: null,
+        created_at: ts,
+        updated_at: ts,
+      })
+
+      const request = new Request('http://localhost/api/admin/users/admin-3', {
+        method: 'PATCH',
+        headers: { Authorization: 'Bearer non-sys-admin-token', 'Content-Type': 'application/json' },
+        body: JSON.stringify({ role: 'user' }),
+      })
+      const context = createMockContext(kv, db, {
+        adminToken: 'non-sys-admin-token',
+        request,
+        params: { id: 'admin-3' },
+      })
+      const response = await apiUpdateUserRole(context as never)
+      expect(response.status).toBe(403)
+    })
+
+    it('system-admin 可以修改任何用户的权限', async () => {
+      await setupSystemAdminToken()
+      const ts = Math.floor(Date.now() / 1000)
+      db.getTable('users').set('user-y', {
+        id: 'user-y',
+        username: 'normaluser',
+        email: 'normal@test.com',
+        password_hash: 'hash',
+        avatar: null,
+        accountname: null,
+        role: 'user',
+        data_key: null,
+        created_at: ts,
+        updated_at: ts,
+      })
+
+      const request = new Request('http://localhost/api/admin/users/user-y', {
+        method: 'PATCH',
+        headers: { Authorization: 'Bearer sys-admin-token', 'Content-Type': 'application/json' },
+        body: JSON.stringify({ role: 'admin' }),
+      })
+      const context = createMockContext(kv, db, {
+        adminToken: 'sys-admin-token',
+        request,
+        params: { id: 'user-y' },
+      })
+      const response = await apiUpdateUserRole(context as never)
+      expect(response.status).toBe(200)
+    })
+
+    it('非 system-admin 不能删除管理员账户', async () => {
+      await setupNonSystemAdminToken()
+      const ts = Math.floor(Date.now() / 1000)
+      db.getTable('users').set('admin-4', {
+        id: 'admin-4',
+        username: 'deladmin',
+        email: 'del@test.com',
+        password_hash: 'hash',
+        avatar: null,
+        accountname: null,
+        role: 'admin',
+        data_key: null,
+        created_at: ts,
+        updated_at: ts,
+      })
+
+      const request = new Request('http://localhost/api/admin/users/admin-4', {
+        method: 'DELETE',
+        headers: { Authorization: 'Bearer non-sys-admin-token' },
+      })
+      const context = createMockContext(kv, db, {
+        adminToken: 'non-sys-admin-token',
+        request,
+        params: { id: 'admin-4' },
+      })
+      const response = await apiDeleteUserById(context as never)
+      expect(response.status).toBe(403)
     })
   })
 })

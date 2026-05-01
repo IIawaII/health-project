@@ -1,6 +1,7 @@
 import { verifyToken } from '../utils/auth';
 import { errorResponse } from '../utils/response';
 import { getLogger } from '../utils/logger';
+import { t } from '../../shared/i18n/server';
 import type { AppContext } from '../utils/handler';
 import type { TokenData } from '../utils/auth';
 
@@ -22,11 +23,11 @@ export async function requireAdmin(
 ): Promise<Response | null> {
   const tokenData = await verifyToken({ request: context.req.raw, env: context.env });
   if (!tokenData) {
-    return errorResponse('未授权，请先登录', 401);
+    return errorResponse(t('admin.errors.unauthorized', '未授权，请先登录'), 401);
   }
   if (tokenData.role !== 'admin') {
     logger.warn('Non-admin access attempt', { userId: tokenData.userId, role: tokenData.role });
-    return errorResponse('权限不足，需要管理员权限', 403);
+    return errorResponse(t('admin.errors.insufficientPermissions', '权限不足，需要管理员权限'), 403);
   }
   // 将 tokenData 注入 context，handler 中可直接使用
   (context as AdminContext).tokenData = tokenData;

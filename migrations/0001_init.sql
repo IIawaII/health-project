@@ -7,6 +7,7 @@ CREATE TABLE IF NOT EXISTS users (
   email TEXT UNIQUE NOT NULL,
   password_hash TEXT NOT NULL,
   avatar TEXT,
+  accountname TEXT,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );

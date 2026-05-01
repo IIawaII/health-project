@@ -1,8 +1,8 @@
 import i18n from 'i18next'
 import { initReactI18next } from 'react-i18next'
 import LanguageDetector from 'i18next-browser-languagedetector'
-import zhCN from './locales/zh-CN.json'
-import enUS from './locales/en-US.json'
+import zhCN from '@shared/i18n/locales/zh-CN.json'
+import enUS from '@shared/i18n/locales/en-US.json'
 
 const resources = {
   'zh-CN': { translation: zhCN },

@@ -1,5 +1,5 @@
 import { createContext } from 'react'
-import type { ChatMessage, ChatSession } from '../types'
+import type { ChatMessage, ChatSession } from '@/types'
 
 export interface ResultContextType {
   analysisResult: string

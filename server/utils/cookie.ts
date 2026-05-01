@@ -56,12 +56,12 @@ export function getCookie(request: Request, name: string): string | undefined {
  * 生产环境安全的默认 Cookie 选项
  * 注意：本地 wrangler dev 使用 http://localhost，secure 为 false
  */
-export function getSecureCookieOptions(request: Request): CookieOptions {
+export function getSecureCookieOptions(request: Request, strictSameSite = false): CookieOptions {
   const isSecure = request.url.startsWith('https://')
   return {
     httpOnly: true,
     secure: isSecure,
-    sameSite: 'Lax',
+    sameSite: strictSameSite ? 'Strict' : 'Lax',
     path: '/',
   }
 }
@@ -71,7 +71,7 @@ export function getSecureCookieOptions(request: Request): CookieOptions {
  * @param role - 用户角色，admin 返回 5 小时，其他返回 7 天
  */
 export function getAccessTokenCookieMaxAge(role?: string): number {
-  return role === 'admin' ? 5 * 60 * 60 : 7 * 24 * 60 * 60
+  return role === 'admin' ? 5 * 60 * 60 : 24 * 60 * 60
 }
 
 export function getRefreshTokenCookieMaxAge(): number {

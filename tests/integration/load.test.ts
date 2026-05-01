@@ -1,6 +1,7 @@
-import { describe, it, expect, beforeAll } from 'vitest'
+import { describe, it, expect, beforeAll, vi } from 'vitest'
 import { MockKV } from './mocks/mock-kv'
 import { MockD1 } from './mocks/mock-d1'
+import { resetClients } from '../../server/utils/upstash'
 import type { AppContext } from '../../server/utils/handler'
 
 /**
@@ -79,7 +80,7 @@ async function runConcurrent<T>(
     avgLatency: latencies.reduce((a, b) => a + b, 0) / latencies.length,
     minLatency: Math.min(...latencies),
     maxLatency: Math.max(...latencies),
-    errors: errors.slice(0, 10), // 只保留前 10 个错误
+    errors: errors.slice(0, 10),
   }
 }
 
@@ -93,6 +94,31 @@ function printResult(name: string, result: LoadTestResult) {
   }
 }
 
+// ==================== Mock Upstash ====================
+
+const mockLimitFn = vi.fn()
+
+vi.mock('@upstash/ratelimit', () => ({
+  Ratelimit: Object.assign(
+    vi.fn().mockImplementation(() => ({
+      limit: mockLimitFn,
+    })),
+    {
+      slidingWindow: vi.fn().mockReturnValue('slidingWindow'),
+    }
+  ),
+}))
+
+vi.mock('@upstash/redis', () => ({
+  Redis: vi.fn().mockImplementation(() => ({
+    ping: vi.fn().mockResolvedValue('PONG'),
+  })),
+}))
+
+vi.mock('../../server/utils/smtp', () => ({
+  sendEmailViaSMTP: vi.fn().mockResolvedValue(undefined),
+}))
+
 // ==================== 测试用例 ====================
 
 describe('高并发压力测试', () => {
@@ -102,6 +128,14 @@ describe('高并发压力测试', () => {
   let env: Record<string, unknown>
 
   beforeAll(() => {
+    resetClients()
+    mockLimitFn.mockReset()
+    mockLimitFn.mockResolvedValue({
+      success: true,
+      remaining: 99,
+      reset: 60,
+    })
+
     authTokens = new MockKV() as unknown as KVNamespace
     verificationCodes = new MockKV() as unknown as KVNamespace
     db = new MockD1()
@@ -121,6 +155,8 @@ describe('高并发压力测试', () => {
       DB: db,
       AUTH_TOKENS: authTokens,
       VERIFICATION_CODES: verificationCodes,
+      UPSTASH_REST_URL: 'https://test.upstash.io',
+      UPSTASH_REST_TOKEN: 'test-token',
       TURNSTILE_SECRET_KEY: 'test-secret',
       AI_BASE_URL: 'https://api.openai.com/v1',
       AI_API_KEY: 'test-api-key',
@@ -131,14 +167,12 @@ describe('高并发压力测试', () => {
   it('并发登录限流测试', async () => {
     const { onRequestPost } = await import('../../server/api/auth/login')
 
-    // Mock fetch 避免真实调用 Turnstile API 导致超时
     const originalFetch = globalThis.fetch
     globalThis.fetch = async () => new Response(JSON.stringify({ success: true }), { status: 200 })
 
     try {
       const result = await runConcurrent(50, 10, async (_i) => {
         const context = createMockContext(env)
-        // 修改 request body
         Object.defineProperty(context.req.raw, 'json', {
           value: async () => ({
             usernameOrEmail: 'testuser',
@@ -148,7 +182,6 @@ describe('高并发压力测试', () => {
         })
 
         const response = await onRequestPost(context)
-        // 期望返回 401（密码错误）或 429（限流）
         if (response.status !== 401 && response.status !== 429) {
           const text = await response.text()
           throw new Error(`Unexpected status ${response.status}: ${text.slice(0, 100)}`)
@@ -163,7 +196,7 @@ describe('高并发压力测试', () => {
   }, 10000)
 
   it('并发验证码发送限流测试', async () => {
-    const { onRequestPost } = await import('../../server/api/auth/send_verification_code')
+    const { onRequestPost } = await import('../../server/api/auth/sendVerificationCode')
 
     const result = await runConcurrent(30, 5, async (i) => {
       const context = createMockContext(env)
@@ -176,7 +209,6 @@ describe('高并发压力测试', () => {
       })
 
       const response = await onRequestPost(context)
-      // 期望返回 400（Turnstile 验证失败）或 429（限流）或 500（邮件服务未配置）
       if (response.status !== 400 && response.status !== 429 && response.status !== 500) {
         const text = await response.text()
         throw new Error(`Unexpected status ${response.status}: ${text.slice(0, 100)}`)
@@ -190,7 +222,6 @@ describe('高并发压力测试', () => {
   it('并发 AI 分析限流测试', async () => {
     const { onRequestPost } = await import('../../server/api/ai/analyze')
 
-    // 先创建一个有效的 token
     const tokenData = JSON.stringify({
       userId: 'user-1',
       username: 'testuser',
@@ -204,7 +235,6 @@ describe('高并发压力测试', () => {
       const context = createMockContext({
         ...env,
       })
-      // 添加认证头
       Object.defineProperty(context.req.raw, 'headers', {
         value: new Headers({
           'Content-Type': 'application/json',
@@ -213,7 +243,7 @@ describe('高并发压力测试', () => {
       })
       Object.defineProperty(context.req.raw, 'json', {
         value: async () => ({
-          fileData: 'data:text/plain;base64,SGVsbG8gV29ybGQ=', // 小文本文件
+          fileData: 'data:text/plain;base64,SGVsbG8gV29ybGQ=',
           fileType: 'text/plain',
           fileName: `test${i}.txt`,
           stream: false,
@@ -221,41 +251,13 @@ describe('高并发压力测试', () => {
       })
 
       const response = await onRequestPost(context)
-      // 打印实际状态码用于调试
       if (response.status !== 200 && response.status !== 429 && response.status !== 502 && response.status !== 503 && response.status !== 400) {
         const text = await response.text()
         throw new Error(`Unexpected status ${response.status}: ${text.slice(0, 100)}`)
       }
-      // 只要返回了已知状态码即视为成功（测试限流行为，不测试 LLM 调用）
     })
 
     printResult('并发 AI 分析限流测试 (20请求, 5并发)', result)
-    // 这个测试主要验证限流是否生效，允许全部请求因各种原因失败
     expect(result.total).toBe(20)
-  })
-
-  it('KV 竞态条件测试 - 并发计数', async () => {
-    const { checkRateLimit } = await import('../../server/utils/rateLimit')
-    const kv = new MockKV() as unknown as KVNamespace
-    const key = 'test:concurrent'
-    const limit = 10
-
-    // 模拟 20 个并发请求同时检查限流
-    const promises = Array.from({ length: 20 }, async (_, _i) => {
-      await new Promise((r) => setTimeout(r, Math.random() * 10)) // 轻微随机延迟
-      return checkRateLimit({ kv, key, limit, windowSeconds: 60 })
-    })
-
-    const results = await Promise.all(promises)
-    const allowed = results.filter((r) => r.allowed).length
-    const blocked = results.filter((r) => !r.allowed).length
-
-    console.log(`\n📊 KV 竞态条件测试`)
-    console.log(`   总请求: 20, 限制: ${limit}, 通过: ${allowed}, 拦截: ${blocked}`)
-
-    // 由于 MockKV 是内存实现，这里应该接近精确
-    // 但在真实 KV 中，allowed 可能略微超过 limit
-    expect(allowed).toBeGreaterThanOrEqual(limit)
-    expect(blocked).toBeGreaterThanOrEqual(20 - limit - 2) // 允许少量误差
   })
 })

@@ -15,10 +15,31 @@ watch_dir = ["src", "server", "worker.ts"]
 enabled = true
 invocation_logs = true
 
+[triggers]
+crons = ["0 3 * * *"]
+
+[[queues.producers]]
+queue = "email-queue"
+binding = "EMAIL_QUEUE"
+
+[[queues.consumers]]
+queue = "email-queue"
+max_batch_size = 10
+max_batch_timeout = 30
+max_retries = 3
+retry_delay = 60
+
 [[d1_databases]]
 binding = "DB"
 database_name = "cloud-health-db"
 database_id = "D1_DATABASE_ID"
+
+[vars]
+ENVIRONMENT = "production"
+
+[[routes]]
+pattern = "ROUTE_PATTERN"
+zone_name = "ROUTE_ZONE_NAME"
 
 [[kv_namespaces]]
 binding = "AUTH_TOKENS"
@@ -28,18 +49,38 @@ id = "KV_AUTH_TOKENS_ID"
 binding = "VERIFICATION_CODES"
 id = "KV_VERIFICATION_CODES_ID"
 
+[[kv_namespaces]]
+binding = "SSRF_CACHE"
+id = "KV_SSRF_CACHE_ID"
+
 # D1 Database:
 #   - DB
 #
 # KV Namespaces:
 #   - AUTH_TOKENS
 #   - VERIFICATION_CODES
+#   - SSRF_CACHE
 #
-# Variables:
+# Upstash Redis (distributed rate limiting):
+#   Set via wrangler secrets:
+#   - UPSTASH_REST_URL
+#   - UPSTASH_REST_TOKEN
+#
+# Variables (injected by CI via [vars]):
 #   - TURNSTILE_SITE_KEY
+#   - SMTP_HOST
+#   - SMTP_PORT
 #
-# Secrets:
+# Secrets (set via wrangler secret put):
 #   - TURNSTILE_SECRET_KEY
-#   - RESEND_API_KEY
+#   - SMTP_USER
+#   - SMTP_PASS
 #   - ADMIN_USERNAME
 #   - ADMIN_PASSWORD
+#   - ALLOWED_ORIGINS
+#
+# D1 Time Travel (Point-in-Time Recovery):
+#   Always enabled for production backend databases.
+#   Restore: npx wrangler d1 time-travel restore cloud-health-db --timestamp=UNIX_TIMESTAMP
+#   Info:    npx wrangler d1 time-travel info cloud-health-db
+#   Retention: 30 days (Paid) / 7 days (Free)

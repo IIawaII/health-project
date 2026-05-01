@@ -6,13 +6,12 @@ import { checkRateLimit, buildRateLimitKey } from '../../utils/rateLimit';
 import { findUserByUsername, findUserByEmail, createUser } from '../../dao/user.dao';
 import { consumeVerificationCode } from '../../dao/verification.dao';
 import { getSystemConfig } from '../../dao/config.dao';
-import { serializeCookie, getSecureCookieOptions, getAccessTokenCookieMaxAge, getRefreshTokenCookieMaxAge } from '../../utils/cookie';
+import { serializeCookie, getSecureCookieOptions, getAccessTokenCookieMaxAge, getRefreshTokenCookieMaxAge, getCookie } from '../../utils/cookie';
+import { generateCsrfToken, buildCsrfCookie, getCsrfCookieName } from '../../middleware/csrf';
 import { getLogger } from '../../utils/logger';
 import type { AppContext } from '../../utils/handler';
 import { registerSchema } from '../../../shared/schemas';
-import i18n from '../../../src/i18n';
-
-const t = i18n.t.bind(i18n);
+import { t } from '../../../shared/i18n/server';
 const logger = getLogger('Register')
 
 function isUniqueConstraintError(error: unknown): boolean {
@@ -41,7 +40,7 @@ export const onRequestPost = async (context: AppContext) => {
 
     // 速率限制：每个 IP 每分钟最多 5 次注册尝试
     const rateLimit = await checkRateLimit({
-      kv: context.env.AUTH_TOKENS,
+      env: context.env,
       key: buildRateLimitKey({ request: context.req.raw }, 'register'),
       limit: 5,
       windowSeconds: 60,
@@ -80,6 +79,9 @@ export const onRequestPost = async (context: AppContext) => {
     if (verificationStatus === 'invalid') {
       return errorResponse(t('auth.register.errors.codeInvalid', '验证码错误'), 400);
     }
+    if (verificationStatus === 'too_many_attempts') {
+      return errorResponse(t('auth.register.errors.codeTooManyAttempts', '验证码错误次数过多，请重新获取'), 429);
+    }
 
     // 创建用户
     const userId = crypto.randomUUID();
@@ -111,7 +113,7 @@ export const onRequestPost = async (context: AppContext) => {
 
     try {
       const tokenCreatedAt = new Date().toISOString();
-      // 保存 Access Token（15分钟有效期）
+      // 保存 Access Token（24小时有效期）
       await saveToken(context.env.AUTH_TOKENS, accessToken, {
         userId,
         username,
@@ -141,6 +143,14 @@ export const onRequestPost = async (context: AppContext) => {
     }
 
     const cookieOptions = getSecureCookieOptions(context.req.raw);
+    const isSecure = context.req.raw.url.startsWith('https://')
+    const existingCsrf = getCookie(context.req.raw, getCsrfCookieName())
+    const csrfCookie = existingCsrf ? '' : buildCsrfCookie(generateCsrfToken(), isSecure)
+    const cookies = [
+      serializeCookie('auth_token', accessToken, { ...cookieOptions, maxAge: getAccessTokenCookieMaxAge('user') }),
+      serializeCookie('auth_refresh_token', refreshToken, { ...cookieOptions, maxAge: getRefreshTokenCookieMaxAge() }),
+    ]
+    if (csrfCookie) cookies.push(csrfCookie)
     return jsonResponse({
       success: true,
       message: t('auth.register.success', '注册成功'),
@@ -150,12 +160,7 @@ export const onRequestPost = async (context: AppContext) => {
         email,
         dataKey,
       },
-    }, 201, {
-      'Set-Cookie': [
-        serializeCookie('auth_token', accessToken, { ...cookieOptions, maxAge: getAccessTokenCookieMaxAge('user') }),
-        serializeCookie('auth_refresh_token', refreshToken, { ...cookieOptions, maxAge: getRefreshTokenCookieMaxAge() }),
-      ].join(', '),
-    });
+    }, 201, undefined, cookies.map((c) => `Set-Cookie: ${c}`));
   } catch (error) {
     logger.error('Registration error', { error: error instanceof Error ? error.message : String(error) });
     return errorResponse(t('auth.register.errors.registrationFailed', '注册失败，请稍后重试'), 500);

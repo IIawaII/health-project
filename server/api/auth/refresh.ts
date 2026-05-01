@@ -2,22 +2,16 @@ import { generateToken, generateDataKey } from '../../utils/crypto';
 import { saveToken, saveRefreshToken, verifyRefreshToken, deleteRefreshToken } from '../../utils/auth';
 import { jsonResponse, errorResponse } from '../../utils/response';
 import { getCookie, serializeCookie, getSecureCookieOptions, getAccessTokenCookieMaxAge, getRefreshTokenCookieMaxAge } from '../../utils/cookie';
+import { generateCsrfToken, buildCsrfCookie, getCsrfCookieName } from '../../middleware/csrf';
 import { findUserById, updateUserDataKey } from '../../dao/user.dao';
 import { getLogger } from '../../utils/logger';
 import type { AppContext } from '../../utils/handler';
-import i18n from '../../../src/i18n';
-
-const t = i18n.t.bind(i18n);
+import { t } from '../../../shared/i18n/server';
 const logger = getLogger('Refresh')
 
 export const onRequestPost = async (context: AppContext) => {
   try {
-    // 优先从 Cookie 读取 refresh token，fallback 到 body（向后兼容）
-    let refreshToken = getCookie(context.req.raw, 'auth_refresh_token');
-    if (!refreshToken) {
-    const body = await context.req.json<{ refreshToken?: string }>().catch(() => ({} as { refreshToken?: string }));
-    refreshToken = body.refreshToken;
-    }
+    const refreshToken = getCookie(context.req.raw, 'auth_refresh_token');
 
     if (!refreshToken) {
       return errorResponse(t('auth.refresh.noToken', '未提供刷新令牌'), 401);
@@ -31,6 +25,7 @@ export const onRequestPost = async (context: AppContext) => {
 
     // 从数据库获取最新的 data_key；老用户无 data_key 时自动生成
     let dataKey = refreshData.dataKey;
+    let accountname: string | undefined;
     try {
       const dbUser = await findUserById(context.env.DB, refreshData.userId);
       if (dbUser) {
@@ -40,6 +35,7 @@ export const onRequestPost = async (context: AppContext) => {
         } else {
           dataKey = dbUser.data_key;
         }
+        accountname = dbUser.accountname ?? undefined;
       }
     } catch {
       // 忽略数据库查询错误，使用 token 中的 dataKey
@@ -73,6 +69,14 @@ export const onRequestPost = async (context: AppContext) => {
     await deleteRefreshToken(context.env.AUTH_TOKENS, refreshToken, refreshData.userId);
 
     const cookieOptions = getSecureCookieOptions(context.req.raw);
+    const isSecure = context.req.raw.url.startsWith('https://')
+    const existingCsrf = getCookie(context.req.raw, getCsrfCookieName())
+    const csrfCookie = existingCsrf ? '' : buildCsrfCookie(generateCsrfToken(), isSecure)
+    const cookies = [
+      serializeCookie('auth_token', accessToken, { ...cookieOptions, maxAge: getAccessTokenCookieMaxAge(refreshData.role ?? 'user') }),
+      serializeCookie('auth_refresh_token', newRefreshToken, { ...cookieOptions, maxAge: getRefreshTokenCookieMaxAge() }),
+    ]
+    if (csrfCookie) cookies.push(csrfCookie)
     return jsonResponse({
       success: true,
       message: t('auth.refresh.success', '令牌刷新成功'),
@@ -80,15 +84,11 @@ export const onRequestPost = async (context: AppContext) => {
         id: refreshData.userId,
         username: refreshData.username,
         email: refreshData.email,
+        accountname,
         role: refreshData.role ?? 'user',
         dataKey,
       },
-    }, 200, {
-      'Set-Cookie': [
-        serializeCookie('auth_token', accessToken, { ...cookieOptions, maxAge: getAccessTokenCookieMaxAge(refreshData.role ?? 'user') }),
-        serializeCookie('auth_refresh_token', newRefreshToken, { ...cookieOptions, maxAge: getRefreshTokenCookieMaxAge() }),
-      ].join(', '),
-    });
+    }, 200, undefined, cookies.map((c) => `Set-Cookie: ${c}`));
   } catch (error) {
     logger.error('Refresh token error', { error: error instanceof Error ? error.message : String(error) });
     return errorResponse(t('auth.refresh.error', '刷新令牌失败，请稍后重试'), 500);

@@ -4,8 +4,12 @@ import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/hooks/useTheme';
 import { TurnstileWidget } from '@/components/common/TurnstileWidget';
-import { TURNSTILE_SITE_KEY, MAINTENANCE_MODE, ENABLE_REGISTRATION } from '@/config/app';
+import { TURNSTILE_SITE_KEY } from '@/config/app';
+import { useMaintenanceMode, useRegistrationEnabled } from '@/hooks/useClientConfig';
 import { registerSchema } from '@shared/schemas';
+import { fetchWithTimeout } from '@/api/client';
+import { AVATAR_LIST } from '@/utils/avatar';
+import Avatar from '@/components/common/Avatar';
 import LanguageSwitcher from '@/components/common/LanguageSwitcher';
 import {
   FiUser,
@@ -18,6 +22,7 @@ import {
   FiCheckCircle,
   FiXCircle,
   FiArrowRight,
+  FiCheck,
   FiMessageSquare,
   FiMoon,
   FiSun,
@@ -48,11 +53,19 @@ export default function Register() {
   const [emailStatus, setEmailStatus] = useState<'idle' | 'checking' | 'available' | 'taken'>('idle');
   const [countdown, setCountdown] = useState(0);
   const [isSendingCode, setIsSendingCode] = useState(false);
+  const [showWelcome, setShowWelcome] = useState(false);
+  const [welcomeAvatar, setWelcomeAvatar] = useState('');
+  const [welcomeNickname, setWelcomeNickname] = useState('');
+  const [typedText, setTypedText] = useState('');
+  const [typingDone, setTypingDone] = useState(false);
+  const [isSavingWelcome, setIsSavingWelcome] = useState(false);
   const checkAbortRef = useRef<AbortController | null>(null);
   const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const isMaintenance = MAINTENANCE_MODE === 'true';
-  const isRegistrationClosed = ENABLE_REGISTRATION === 'false';
+  const { value: isMaintenance } = useMaintenanceMode();
+  const { value: isRegistrationEnabled } = useRegistrationEnabled();
+  const isRegistrationClosed = !isRegistrationEnabled;
 
   // 密码强度验证
   const passwordChecks = {
@@ -79,14 +92,13 @@ export default function Register() {
     statusSetter('checking');
     errorSetter('');
 
-    // 取消之前的请求，避免竞态条件
     checkAbortRef.current?.abort();
     const controller = new AbortController();
     checkAbortRef.current = controller;
     const timeoutId = setTimeout(() => controller.abort(), 10000);
 
     try {
-      const res = await fetch('/api/auth/check', {
+      const res = await fetchWithTimeout('/api/auth/check', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ [field]: value }),
@@ -94,6 +106,11 @@ export default function Register() {
       });
       clearTimeout(timeoutId);
       const data = await res.json() as { available?: boolean; error?: string };
+
+      if (res.status === 429) {
+        statusSetter('idle');
+        return;
+      }
 
       if (!res.ok) {
         statusSetter('idle');
@@ -111,7 +128,6 @@ export default function Register() {
     } catch (err) {
       clearTimeout(timeoutId);
       if (err instanceof DOMException && err.name === 'AbortError') {
-        // 如果是当前请求被主动取消，不重置状态（新请求会覆盖）
         if (controller.signal.reason !== 'next-check') {
           statusSetter('idle');
           errorSetter(t('auth.register.errors.checkTimeout'));
@@ -125,6 +141,13 @@ export default function Register() {
       }
     }
   };
+
+  const debouncedCheck = useCallback((field: 'username' | 'email', value: string) => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      checkAvailability(field, value);
+    }, 500);
+  }, []);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -151,7 +174,7 @@ export default function Register() {
       if (!validateEmail(formData.email)) {
         setEmailError(t('auth.register.emailError'));
       } else {
-        checkAvailability('email', formData.email);
+        debouncedCheck('email', formData.email);
       }
     }
   };
@@ -161,7 +184,7 @@ export default function Register() {
       if (!/^[a-zA-Z0-9_]{3,10}$/.test(formData.username)) {
         setUsernameError(t('auth.register.usernameError'));
       } else {
-        checkAvailability('username', formData.username);
+        debouncedCheck('username', formData.username);
       }
     }
   };
@@ -199,7 +222,7 @@ export default function Register() {
     setError('');
 
     try {
-      const res = await fetch('/api/auth/send_verification_code', {
+      const res = await fetchWithTimeout('/api/auth/sendVerificationCode', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -226,7 +249,7 @@ export default function Register() {
       } else {
         setError(data.error || t('auth.register.errors.sendCodeFailed'));
         // 如果 Turnstile 验证失败，重置 token
-        if (data.error?.includes('人机验证')) {
+        if (data.error?.includes(t('auth.validation.turnstileRequired', '请完成人机验证'))) {
           setTurnstileToken('');
           setTurnstileKey((prev) => prev + 1);
         }
@@ -246,6 +269,50 @@ export default function Register() {
       }
     };
   }, []);
+
+  const WELCOME_TEXT = t('auth.welcomeText', '嗨，别来无恙啊👋');
+
+  useEffect(() => {
+    if (!showWelcome) {
+      setTypedText('');
+      setTypingDone(false);
+      return;
+    }
+    setWelcomeNickname('');
+    let i = 0;
+    const timer = setInterval(() => {
+      if (i < WELCOME_TEXT.length) {
+        setTypedText(WELCOME_TEXT.slice(0, i + 1));
+        i++;
+      } else {
+        clearInterval(timer);
+        setTypingDone(true);
+      }
+    }, 100);
+    return () => clearInterval(timer);
+  }, [showWelcome, WELCOME_TEXT]);
+
+  const handleWelcomeConfirm = async () => {
+    if (!welcomeAvatar) return;
+    setIsSavingWelcome(true);
+    try {
+      const body: { avatar: string; accountname?: string } = { avatar: welcomeAvatar };
+      if (welcomeNickname.trim()) {
+        body.accountname = welcomeNickname.trim();
+      }
+      await fetchWithTimeout('/api/auth/update_profile', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(body),
+      });
+    } catch {
+      // 静默处理，不影响跳转
+    }
+    setIsSavingWelcome(false);
+    navigate('/');
+  };
 
   const validateForm = (): boolean => {
     const result = registerSchema.safeParse({
@@ -305,7 +372,7 @@ export default function Register() {
     setIsLoading(false);
 
     if (result.success) {
-      navigate('/');
+      setShowWelcome(true);
     } else {
       setError(result.error || t('auth.register.errors.registrationFailed'));
       // 重置 Turnstile token 并强制重新渲染验证组件
@@ -498,7 +565,7 @@ export default function Register() {
                     value={formData.password}
                     onChange={handleChange}
                     placeholder={t('auth.register.passwordPlaceholder')}
-                    maxLength={128}
+                    maxLength={30}
                     className="w-full pl-10 pr-12 py-2.5 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500"
                     disabled={isLoading}
                   />
@@ -566,7 +633,7 @@ export default function Register() {
                     value={formData.confirmPassword}
                     onChange={handleChange}
                     placeholder={t('auth.register.confirmPasswordPlaceholder')}
-                    maxLength={128}
+                    maxLength={30}
                     className="w-full pl-10 pr-12 py-2.5 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500"
                     disabled={isLoading}
                   />
@@ -634,6 +701,88 @@ export default function Register() {
           {t('auth.login.securityNotice')}
         </p>
       </div>
+
+      {/* Welcome Modal */}
+      {showWelcome && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 max-w-sm w-full overflow-hidden">
+            <div className="p-8">
+              <div className="text-center mb-6">
+                <p className="text-2xl font-bold text-slate-800 dark:text-slate-100 min-h-[2.5rem]">
+                  {typedText}
+                  {!typingDone && <span className="animate-pulse">|</span>}
+                </p>
+              </div>
+
+              {typingDone && (
+                <div className="space-y-5 animate-[fadeIn_0.4s_ease-out]">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                      {t('auth.register.welcomeAvatar')}
+                    </label>
+                    <div className="grid grid-cols-6 gap-1.5 max-h-[160px] overflow-y-auto p-2 bg-slate-50 dark:bg-slate-700 rounded-lg border border-slate-200 dark:border-slate-600">
+                      {AVATAR_LIST.map((name) => (
+                        <button
+                          key={name}
+                          type="button"
+                          onClick={() => setWelcomeAvatar(name)}
+                          className={`relative w-full aspect-square rounded-lg bg-white dark:bg-slate-600 flex items-center justify-center transition-all ${
+                            welcomeAvatar === name
+                              ? 'ring-2 ring-blue-500 scale-105'
+                              : 'hover:scale-105 opacity-70 hover:opacity-100'
+                          }`}
+                        >
+                          <Avatar avatar={name} size={32} />
+                          {welcomeAvatar === name && (
+                            <div className="absolute -top-1 -right-1 w-4 h-4 bg-blue-500 rounded-full flex items-center justify-center shadow-sm border-2 border-white dark:border-slate-700">
+                              <FiCheck className="w-2.5 h-2.5 text-white" />
+                            </div>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                    {!welcomeAvatar && (
+                      <p className="mt-1 text-xs text-amber-500">{t('auth.register.welcomeAvatarHint')}</p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                      {t('auth.register.welcomeNickname')}
+                    </label>
+                    <div className="relative">
+                      <FiUser className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                      <input
+                        type="text"
+                        value={welcomeNickname}
+                        onChange={(e) => setWelcomeNickname(e.target.value)}
+                        placeholder={t('auth.register.welcomeNicknamePlaceholder')}
+                        maxLength={20}
+                        className="w-full pl-9 pr-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500"
+                      />
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={handleWelcomeConfirm}
+                    disabled={!welcomeAvatar || isSavingWelcome}
+                    className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-blue-500 to-cyan-500 text-white py-2.5 rounded-lg font-medium hover:from-blue-600 hover:to-cyan-600 focus:ring-4 focus:ring-blue-500/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isSavingWelcome ? (
+                      <FiLoader className="w-5 h-5 animate-spin" />
+                    ) : (
+                      <>
+                        {t('auth.register.welcomeGo')}
+                        <FiArrowRight className="w-5 h-5" />
+                      </>
+                    )}
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

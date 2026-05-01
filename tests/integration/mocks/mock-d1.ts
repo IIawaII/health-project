@@ -13,6 +13,7 @@ import '../../../worker-configuration.d.ts'
 
 export class MockD1 implements D1Database {
   private tables = new Map<string, Map<string, Record<string, unknown>>>()
+  _lock: Promise<void> = Promise.resolve()
 
   prepare(sql: string): MockD1PreparedStatement {
     return new MockD1PreparedStatement(this, sql)
@@ -135,6 +136,19 @@ export class MockD1PreparedStatement implements D1PreparedStatement {
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   async execute(): Promise<any> {
+    const prevLock = this.db._lock
+    let resolveLock: () => void
+    this.db._lock = new Promise<void>((resolve) => { resolveLock = resolve })
+    await prevLock
+    try {
+      return await this._executeInner()
+    } finally {
+      resolveLock!()
+    }
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private async _executeInner(): Promise<any> {
     const rawSql = this.sql.trim()
     const sql = normalizeSql(rawSql)
     const lowerSql = sql.toLowerCase()
@@ -286,6 +300,22 @@ export class MockD1PreparedStatement implements D1PreparedStatement {
         return { success: true, results: [], meta: { changes: 0 } }
       }
 
+      // SELECT by task_id (backup_records)
+      if (lowerSql.includes('task_id = ?') && !lowerSql.includes('id != ?')) {
+        const table = this.db.getTable(tableName)
+        const taskId = bindings[0] as string
+        const results = Array.from(table.values()).filter((r) => r.task_id === taskId)
+        let limit = results.length
+        let offset = 0
+        if (lowerSql.includes('limit ?') && lowerSql.includes('offset ?')) {
+          limit = bindings[bindings.length - 2] as number
+          offset = bindings[bindings.length - 1] as number
+        } else if (lowerSql.includes('limit ?')) {
+          limit = bindings[bindings.length - 1] as number
+        }
+        return { success: true, results: results.slice(offset, offset + limit), meta: { changes: 0 } }
+      }
+
       // SELECT by id (Drizzle: WHERE id = ? LIMIT ? — id 是第一个绑定参数)
       if (lowerSql.includes('id = ?')) {
         const table = this.db.getTable(tableName)
@@ -374,7 +404,6 @@ export class MockD1PreparedStatement implements D1PreparedStatement {
       const table = this.db.getTable(tableName)
 
       if (tableName === 'users') {
-        // Drizzle: (id, username, email, password_hash, avatar, role, data_key, created_at, updated_at)
         const id = bindings[0] as string
         table.set(id, {
           id: bindings[0],
@@ -382,20 +411,31 @@ export class MockD1PreparedStatement implements D1PreparedStatement {
           email: bindings[2],
           password_hash: bindings[3],
           avatar: bindings[4],
-          role: bindings[5] ?? 'user',
-          data_key: bindings[6],
-          created_at: bindings[7] as number,
-          updated_at: bindings[8] as number,
+          accountname: bindings[5],
+          role: bindings[6] ?? 'user',
+          data_key: bindings[7],
+          created_at: bindings[8] as number,
+          updated_at: bindings[9] as number,
         })
       } else if (tableName === 'verification_codes') {
         const key = `${bindings[0]}:${bindings[1]}`
-        table.set(key, {
-          purpose: bindings[0],
-          email: bindings[1],
-          code: bindings[2],
-          created_at: bindings[3],
-          expires_at: bindings[4],
-        })
+        const hasOnConflict = lowerSql.includes('on conflict')
+        if (hasOnConflict && table.has(key)) {
+          const existing = table.get(key)!
+          existing.code = bindings[2]
+          existing.attempts = bindings[3] ?? 0
+          existing.created_at = bindings[4]
+          existing.expires_at = bindings[5]
+        } else {
+          table.set(key, {
+            purpose: bindings[0],
+            email: bindings[1],
+            code: bindings[2],
+            attempts: bindings[3] ?? 0,
+            created_at: bindings[4],
+            expires_at: bindings[5],
+          })
+        }
       } else if (tableName === 'verification_code_cooldowns') {
         const key = `${bindings[0]}:${bindings[1]}`
         table.set(key, {
@@ -430,6 +470,38 @@ export class MockD1PreparedStatement implements D1PreparedStatement {
           value: bindings[1],
           updated_at: bindings[2],
         })
+      } else if (tableName === 'backup_tasks') {
+        const id = bindings[0] as string
+        table.set(id, {
+          id: bindings[0],
+          name: bindings[1],
+          scope: bindings[2],
+          frequency: bindings[3],
+          retention_days: bindings[4],
+          is_paused: bindings[5],
+          last_run_at: bindings[6],
+          next_run_at: bindings[7],
+          created_at: bindings[8],
+          updated_at: bindings[9],
+        })
+      } else if (tableName === 'backup_records') {
+        const id = bindings[0] as string
+        table.set(id, {
+          id: bindings[0],
+          task_id: bindings[1],
+          status: bindings[2],
+          scope: bindings[3],
+          size_bytes: bindings[4],
+          started_at: bindings[5],
+          completed_at: bindings[6],
+          error_message: bindings[7],
+          created_at: bindings[8],
+        })
+      } else {
+        const id = bindings[0] as string
+        if (id) {
+          table.set(id, { id, ...Object.fromEntries(Object.entries(bindings).map(([i, v]) => [`col_${i}`, v])) })
+        }
       }
 
       return { success: true, results: [], meta: { changes: 1 } }

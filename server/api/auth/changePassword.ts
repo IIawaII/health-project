@@ -6,22 +6,18 @@ import { findUserById, updateUserPassword } from '../../dao/user.dao';
 import { getLogger } from '../../utils/logger';
 import type { AppContext } from '../../utils/handler';
 import { changePasswordSchema } from '../../../shared/schemas';
-import i18n from '../../../src/i18n';
-
-const t = i18n.t.bind(i18n);
+import { t } from '../../../shared/i18n/server';
 const logger = getLogger('ChangePassword')
 
 export const onRequestPost = async (context: AppContext) => {
   try {
-    // 验证 token（复用 lib/auth 中的逻辑）
     const tokenData = await verifyToken({ request: context.req.raw, env: context.env });
     if (!tokenData) {
       return errorResponse(t('settings.errors.sessionExpired'), 401);
     }
 
-    // 速率限制：每个用户每小时最多 5 次修改密码尝试
     const rateLimit = await checkRateLimit({
-      kv: context.env.AUTH_TOKENS,
+      env: context.env,
       key: `${tokenData.userId}:change_password`,
       limit: 5,
       windowSeconds: 3600,
@@ -45,18 +41,15 @@ export const onRequestPost = async (context: AppContext) => {
     }
     const { currentPassword, newPassword } = parseResult.data;
 
-    // 验证当前密码
     const isPasswordValid = await verifyPassword(currentPassword, dbUser.password_hash);
 
     if (!isPasswordValid) {
       return errorResponse(t('settings.errors.currentPasswordIncorrect'), 400);
     }
 
-    // 哈希新密码并更新
     const newPasswordHash = await hashPassword(newPassword);
     await updateUserPassword(context.env.DB, userId, newPasswordHash);
 
-    // 修改密码后使该用户的所有 token 失效（强制重新登录）
     await revokeAllUserTokens(context.env.AUTH_TOKENS, userId);
 
     return jsonResponse({

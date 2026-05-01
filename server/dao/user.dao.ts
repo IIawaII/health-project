@@ -3,7 +3,7 @@
  */
 
 import { eq, and, ne, or, count, sql, gte } from 'drizzle-orm'
-import { getDb, users, type DbClient } from '../db'
+import { getDb, users, userAiConfigs, usageLogs, verificationCodes, verificationCodeCooldowns, type DbClient } from '../db'
 import { getLogger } from '../utils/logger'
 
 const logger = getLogger('UserDAO')
@@ -14,6 +14,7 @@ export interface DbUser {
   email: string
   password_hash: string
   avatar: string | null
+  accountname: string | null
   role: string
   data_key: string | null
   created_at: number
@@ -62,6 +63,7 @@ export async function findUserByIdPublic(d1: D1Database, id: string): Promise<Db
       username: users.username,
       email: users.email,
       avatar: users.avatar,
+      accountname: users.accountname,
       role: users.role,
       created_at: users.created_at,
       updated_at: users.updated_at,
@@ -74,7 +76,7 @@ export async function findUserByIdPublic(d1: D1Database, id: string): Promise<Db
 
 export async function createUser(
   d1: D1Database,
-  user: Omit<DbUser, 'avatar'> & { avatar?: string | null }
+  user: Omit<DbUser, 'avatar' | 'accountname'> & { avatar?: string | null; accountname?: string | null }
 ): Promise<void> {
   logger.info('Creating user', { username: user.username, email: user.email })
   await db(d1)
@@ -85,6 +87,7 @@ export async function createUser(
       email: user.email,
       password_hash: user.password_hash,
       avatar: user.avatar ?? null,
+      accountname: user.accountname ?? null,
       role: user.role,
       data_key: user.data_key ?? null,
       created_at: user.created_at,
@@ -104,7 +107,7 @@ export async function updateUserPassword(d1: D1Database, id: string, passwordHas
     .run()
 }
 
-const ALLOWED_UPDATE_COLUMNS = ['username', 'email', 'avatar'] as const
+const ALLOWED_UPDATE_COLUMNS = ['username', 'email', 'avatar', 'accountname'] as const
 
 export async function updateUser(
   d1: D1Database,
@@ -125,6 +128,7 @@ export async function updateUser(
   if (updates.username !== undefined) setData.username = updates.username
   if (updates.email !== undefined) setData.email = updates.email
   if (updates.avatar !== undefined) setData.avatar = updates.avatar
+  if (updates.accountname !== undefined) setData.accountname = updates.accountname
 
   if (Object.keys(setData).length <= 1) return
 
@@ -158,10 +162,29 @@ export async function updateUserRole(d1: D1Database, id: string, role: string): 
 }
 
 export async function deleteUserById(d1: D1Database, id: string): Promise<void> {
-  await db(d1)
-    .delete(users)
+  const drizzleDb = db(d1)
+
+  const user = await drizzleDb
+    .select({ email: users.email })
+    .from(users)
     .where(eq(users.id, id))
-    .run()
+    .limit(1)
+
+  await drizzleDb.delete(userAiConfigs).where(eq(userAiConfigs.user_id, id)).run()
+  await drizzleDb.delete(usageLogs).where(eq(usageLogs.user_id, id)).run()
+
+  if (user.length > 0) {
+    await drizzleDb
+      .delete(verificationCodes)
+      .where(eq(verificationCodes.email, user[0].email))
+      .run()
+    await drizzleDb
+      .delete(verificationCodeCooldowns)
+      .where(eq(verificationCodeCooldowns.email, user[0].email))
+      .run()
+  }
+
+  await drizzleDb.delete(users).where(eq(users.id, id)).run()
 }
 
 export async function usernameExists(d1: D1Database, username: string, excludeId?: string): Promise<boolean> {
@@ -216,6 +239,7 @@ export async function getUserList(
         username: users.username,
         email: users.email,
         avatar: users.avatar,
+        accountname: users.accountname,
         role: users.role,
         created_at: users.created_at,
         updated_at: users.updated_at,
@@ -241,12 +265,12 @@ export async function getDailyUserStats(d1: D1Database, days: number = 30): Prom
   const cutoff = Math.floor(Date.now() / 1000) - days * 86400;
   const result = await db(d1)
     .select({
-      date: sql<string>`date(${users.created_at}, 'unixepoch')`,
+      date: sql<string>`strftime('%Y-%m-%d', ${users.created_at}, 'unixepoch', '+8 hours')`,
       count: count(),
     })
     .from(users)
     .where(gte(users.created_at, cutoff))
-    .groupBy(sql`date(${users.created_at}, 'unixepoch')`)
-    .orderBy(sql`date ASC`)
+    .groupBy(sql`strftime('%Y-%m-%d', ${users.created_at}, 'unixepoch', '+8 hours')`)
+    .orderBy(sql`strftime('%Y-%m-%d', ${users.created_at}, 'unixepoch', '+8 hours') ASC`)
   return result as { date: string; count: number }[];
 }

@@ -1,49 +1,91 @@
-/**
- * CSRF 防护中间件
- * 对敏感操作（状态变更）强制要求 Authorization 头，
- * 拒绝仅依赖 Cookie 认证的请求，防止 CSRF 攻击
- */
-
 import { errorResponse } from '../utils/response'
+import { getCookie, serializeCookie } from '../utils/cookie'
 import { getLogger } from '../utils/logger'
+import { t } from '../../shared/i18n/server'
 import type { AppContext } from '../utils/handler'
 
 const logger = getLogger('CSRF')
 
-/** 需要 CSRF 保护的敏感操作路径前缀 */
-const SENSITIVE_PATHS = [
-  '/api/auth/change_password',
-  '/api/auth/update_profile',
-  '/api/auth/logout',
-  '/api/admin/users',   // PATCH / DELETE
-  '/api/admin/config',  // PUT
-]
+const EXEMPT_METHODS = new Set(['GET', 'HEAD', 'OPTIONS'])
 
-/**
- * 检查请求是否为敏感操作且缺少 Authorization 头
- * 返回 null 表示通过，返回 Response 表示拒绝
- */
+const EXEMPT_PATHS = new Set([
+  '/api/auth/login',
+  '/api/auth/register',
+  '/api/auth/sendVerificationCode',
+  '/api/auth/check',
+])
+
+const CSRF_COOKIE_NAME = 'csrf-token'
+const CSRF_HEADER_NAME = 'X-CSRF-Token'
+
+function timingSafeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) {
+    a.charCodeAt(0)
+    for (let i = 1; i < b.length; i++) a.charCodeAt(i)
+    return false
+  }
+  let result = 0
+  for (let i = 0; i < a.length; i++) {
+    result |= a.charCodeAt(i) ^ b.charCodeAt(i)
+  }
+  return result === 0
+}
+
+export function generateCsrfToken(): string {
+  const array = new Uint8Array(32)
+  crypto.getRandomValues(array)
+  return Array.from(array, (b) => b.toString(16).padStart(2, '0')).join('')
+}
+
+export function getCsrfCookieName(): string {
+  return CSRF_COOKIE_NAME
+}
+
+export function getCsrfHeaderName(): string {
+  return CSRF_HEADER_NAME
+}
+
+export function buildCsrfCookie(token: string, isSecure: boolean): string {
+  return serializeCookie(CSRF_COOKIE_NAME, token, {
+    secure: isSecure,
+    sameSite: 'Strict',
+    path: '/',
+    httpOnly: false,
+    maxAge: 60 * 60 * 24 * 365,
+  })
+}
+
 export function requireCsrfProtection(context: AppContext): Response | null {
-  const path = new URL(context.req.url).pathname
   const method = context.req.method
 
-  // 只检查写操作（POST/PUT/PATCH/DELETE）
-  if (method === 'GET' || method === 'HEAD' || method === 'OPTIONS') {
+  if (EXEMPT_METHODS.has(method)) {
     return null
   }
 
-  // 检查是否为敏感路径
-  const isSensitive = SENSITIVE_PATHS.some((prefix) => path.startsWith(prefix))
-  if (!isSensitive) return null
+  const path = new URL(context.req.url).pathname
+  if (EXEMPT_PATHS.has(path)) {
+    return null
+  }
 
-  // 强制要求 Authorization 头
-  const authHeader = context.req.header('Authorization')
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    logger.warn('CSRF protection: missing Authorization header for sensitive operation', {
+  const cookieToken = getCookie(context.req.raw, CSRF_COOKIE_NAME)
+  const headerToken = context.req.header(CSRF_HEADER_NAME)
+
+  if (!cookieToken || !headerToken) {
+    logger.warn('CSRF protection: missing token', {
+      path,
+      method,
+      hasCookie: !!cookieToken,
+      hasHeader: !!headerToken,
+    })
+    return errorResponse(t('csrf.missingToken', 'CSRF 令牌缺失'), 403)
+  }
+
+  if (!timingSafeEqual(cookieToken, headerToken)) {
+    logger.warn('CSRF protection: token mismatch', {
       path,
       method,
     })
-    return errorResponse('敏感操作需要 Authorization 头认证', 403)
+    return errorResponse(t('csrf.invalidToken', 'CSRF 令牌验证失败'), 403)
   }
 
   return null

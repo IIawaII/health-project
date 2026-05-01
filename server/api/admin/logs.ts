@@ -1,8 +1,10 @@
 import { z } from 'zod';
 import { jsonResponse, errorResponse } from '../../utils/response';
-import { getUsageLogs } from '../../dao/log.dao';
+import { getUsageLogs, clearAllUsageLogs } from '../../dao/log.dao';
+import { createAuditLog } from '../../dao/audit.dao';
 import { withAdmin } from '../../middleware/admin';
 import { getLogger } from '../../utils/logger';
+import { t } from '../../../shared/i18n/server';
 import type { AdminContext } from '../../middleware/admin';
 
 const logger = getLogger('AdminLogs')
@@ -33,7 +35,7 @@ export const onRequestGet = withAdmin(async (context: AdminContext) => {
       endDate: url.searchParams.get('endDate') || undefined,
     });
     if (!parseResult.success) {
-      return errorResponse(parseResult.error.errors[0]?.message || '参数错误', 400);
+      return errorResponse(parseResult.error.errors[0]?.message || t('common.invalidParams', '参数错误'), 400);
     }
 
     const { page, pageSize, action, startDate, endDate } = parseResult.data;
@@ -58,6 +60,25 @@ export const onRequestGet = withAdmin(async (context: AdminContext) => {
     }, 200);
   } catch (error) {
     logger.error('Failed to get logs', { error: error instanceof Error ? error.message : String(error) });
-    return errorResponse('获取日志失败', 500);
+    return errorResponse(t('admin.errors.fetchLogsFailed', '获取日志失败'), 500);
   }
-});
+})
+
+export const onRequestDelete = withAdmin(async (context: AdminContext) => {
+  try {
+    const deleted = await clearAllUsageLogs(context.env.DB)
+    logger.info('Cleared all usage logs', { deleted })
+    await createAuditLog(context.env.DB, {
+      id: crypto.randomUUID(),
+      admin_id: context.tokenData.userId,
+      action: 'CLEAR_USAGE_LOGS',
+      target_type: 'usage_logs',
+      target_id: 'all',
+      details: `Cleared ${deleted} usage log(s)`,
+    })
+    return jsonResponse({ success: true, data: { deleted } }, 200)
+  } catch (error) {
+    logger.error('Failed to clear usage logs', { error: error instanceof Error ? error.message : String(error) })
+    return errorResponse(t('admin.errors.clearLogsFailed', '清空使用日志失败'), 500)
+  }
+})

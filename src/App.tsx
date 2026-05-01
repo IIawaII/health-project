@@ -8,6 +8,7 @@ import { AdminProtectedRoute } from '@/components/auth/AdminProtectedRoute'
 import { ErrorBoundary } from '@/components/layout/ErrorBoundary'
 import Layout from '@/components/layout/Layout'
 import AdminLayout from '@/components/layout/AdminLayout'
+import { useMaintenanceMode } from '@/hooks/useClientConfig'
 import '@/i18n'
 
 const Home = lazy(() => import('@/pages/home/Home'))
@@ -24,6 +25,7 @@ const AdminDashboard = lazy(() => import('@/pages/admin/Dashboard'))
 const AdminUsers = lazy(() => import('@/pages/admin/Users'))
 const AdminDataManagement = lazy(() => import('@/pages/admin/DataManagement'))
 const AdminSystemConfig = lazy(() => import('@/pages/admin/SystemConfig'))
+const AdminBackupManagement = lazy(() => import('@/pages/admin/BackupManagement'))
 
 function LoadingScreen() {
   return (
@@ -34,28 +36,41 @@ function LoadingScreen() {
 }
 
 // 统一认证状态检查与重定向
-function AuthGuard({ fallback }: { fallback: React.ReactNode }) {
+function AuthGuard({ fallback, allowInMaintenance }: { fallback: React.ReactNode; allowInMaintenance?: boolean }) {
   const { isAuthenticated, isLoading, user } = useAuth()
+  const { value: isMaintenance, initialized } = useMaintenanceMode()
 
-  if (isLoading) {
+  if (isLoading || !initialized) {
     return <LoadingScreen />
   }
 
   if (isAuthenticated) {
-    return <Navigate to={user?.role === 'admin' ? '/admin' : '/home'} replace />
+    if (user?.role === 'admin') {
+      return <Navigate to="/admin" replace />
+    }
+    if (isMaintenance && !allowInMaintenance) {
+      return <Navigate to="/maintenance" replace />
+    }
+    if (!allowInMaintenance) {
+      return <Navigate to="/home" replace />
+    }
+  } else {
+    if (isMaintenance && !allowInMaintenance) {
+      return <Navigate to="/maintenance" replace />
+    }
   }
 
   return <>{fallback}</>
 }
 
 // 已登录用户访问登录/注册页面的重定向组件
-function PublicRoute({ children }: { children: React.ReactNode }) {
-  return <AuthGuard fallback={children} />
+function PublicRoute({ children, allowInMaintenance }: { children: React.ReactNode; allowInMaintenance?: boolean }) {
+  return <AuthGuard fallback={children} allowInMaintenance={allowInMaintenance} />
 }
 
 // 根路由：已登录用户重定向到 /home 或 /admin，未登录用户显示落地页
 function LandingRoute() {
-  return <AuthGuard fallback={<LandingPage />} />
+  return <AuthGuard fallback={<LandingPage />} allowInMaintenance />
 }
 
 function AppRoutes() {
@@ -69,7 +84,7 @@ function AppRoutes() {
       <Route
         path="/login"
         element={
-          <PublicRoute>
+          <PublicRoute allowInMaintenance>
             <Login />
           </PublicRoute>
         }
@@ -140,42 +155,16 @@ function AppRoutes() {
         path="/admin"
         element={
           <AdminProtectedRoute>
-            <AdminLayout>
-              <AdminDashboard />
-            </AdminLayout>
+            <AdminLayout />
           </AdminProtectedRoute>
         }
-      />
-      <Route
-        path="/admin/users"
-        element={
-          <AdminProtectedRoute>
-            <AdminLayout>
-              <AdminUsers />
-            </AdminLayout>
-          </AdminProtectedRoute>
-        }
-      />
-      <Route
-        path="/admin/data"
-        element={
-          <AdminProtectedRoute>
-            <AdminLayout>
-              <AdminDataManagement />
-            </AdminLayout>
-          </AdminProtectedRoute>
-        }
-      />
-      <Route
-        path="/admin/config"
-        element={
-          <AdminProtectedRoute>
-            <AdminLayout>
-              <AdminSystemConfig />
-            </AdminLayout>
-          </AdminProtectedRoute>
-        }
-      />
+      >
+        <Route index element={<AdminDashboard />} />
+        <Route path="users" element={<AdminUsers />} />
+        <Route path="data" element={<AdminDataManagement />} />
+        <Route path="config" element={<AdminSystemConfig />} />
+        <Route path="backups" element={<AdminBackupManagement />} />
+      </Route>
 
       {/* 状态页面 */}
       <Route path="/maintenance" element={<MaintenancePage />} />
