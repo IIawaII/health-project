@@ -6,7 +6,7 @@ interface TurnstileResult {
   error?: string
 }
 
-const cache = getCache<{ valid: boolean }>('turnstile', { ttlMs: 5 * 1000, maxSize: 50 })
+const cache = getCache<{ valid: boolean }>('turnstile', { ttlMs: 5 * 60 * 1000, maxSize: 50 })
 
 export async function verifyTurnstile(
   token: string,

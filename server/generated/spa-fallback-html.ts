@@ -14,15 +14,14 @@ export const FALLBACK_HTML = `<!doctype html>
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
     <script id="turnstile-script" src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit" async></script>
-    <script type="module" crossorigin src="/assets/index-Cspr9txl.js"></script>
+    <script type="module" crossorigin src="/assets/index-x7QGmBNA.js"></script>
     <link rel="modulepreload" crossorigin href="/assets/vendor-react-ld_0ABdC.js">
     <link rel="modulepreload" crossorigin href="/assets/vendor-react-dom-CeH8dy2s.js">
     <link rel="modulepreload" crossorigin href="/assets/vendor-i18n-BGyDSKTn.js">
     <link rel="modulepreload" crossorigin href="/assets/vendor-pdf-CxDXO6Lf.js">
-    <link rel="modulepreload" crossorigin href="/assets/vendor-icons-J0vyz0GS.js">
-    <link rel="modulepreload" crossorigin href="/assets/vendor-router-7759pkKp.js">
-    <link rel="modulepreload" crossorigin href="/assets/vendor-shared-DHgsoueE.js">
-    <link rel="stylesheet" crossorigin href="/assets/index-CY0-J8W-.css">
+    <link rel="modulepreload" crossorigin href="/assets/vendor-icons-DP4aIbmY.js">
+    <link rel="modulepreload" crossorigin href="/assets/vendor-router-Dy67Ac9G.js">
+    <link rel="stylesheet" crossorigin href="/assets/index-D009YeVC.css">
   <script>window.__ENV__={"TURNSTILE_SITE_KEY":"1x00000000000000000000AA"}</script></head>
   <body>
     <div id="root"></div>

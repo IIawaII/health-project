@@ -26,6 +26,7 @@ const AdminUsers = lazy(() => import('@/pages/admin/Users'))
 const AdminDataManagement = lazy(() => import('@/pages/admin/DataManagement'))
 const AdminSystemConfig = lazy(() => import('@/pages/admin/SystemConfig'))
 const AdminBackupManagement = lazy(() => import('@/pages/admin/BackupManagement'))
+const AccountSettings = lazy(() => import('@/pages/settings/AccountSettings'))
 
 function LoadingScreen() {
   return (
@@ -145,6 +146,16 @@ function AppRoutes() {
           <ProtectedRoute>
             <Layout>
               <HealthQuiz />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/settings"
+        element={
+          <ProtectedRoute>
+            <Layout>
+              <AccountSettings />
             </Layout>
           </ProtectedRoute>
         }

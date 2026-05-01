@@ -1,8 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
-import SettingsModal from '../features/SettingsModal'
-import ApiSettings from '../features/ApiSettings'
 import { hasStoredApiConfig } from '@/config/ai'
 import Avatar from '../common/Avatar'
 import {
@@ -40,17 +38,13 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const { t } = useTranslation()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [userMenuOpen, setUserMenuOpen] = useState(false)
-  const [settingsOpen, setSettingsOpen] = useState(false)
-  const [apiSettingsOpen, setApiSettingsOpen] = useState(false)
   const [apiConfigured, setApiConfigured] = useState(false)
   const userMenuRef = useRef<HTMLDivElement>(null)
 
-  // 异步检查 API 配置状态
   useEffect(() => {
     hasStoredApiConfig().then(setApiConfigured).catch(() => setApiConfigured(false))
   }, [])
 
-  // 监听 storage 事件，同步多标签页的 AI 配置状态变化
   useEffect(() => {
     const handleStorage = (e: StorageEvent) => {
       if (e.key === 'health_ai_config_enc' || e.key === 'health_ai_config') {
@@ -123,7 +117,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             <div className="flex items-center gap-3">
               {/* AI Config Button */}
               <button
-                onClick={() => setApiSettingsOpen(true)}
+                onClick={() => navigate('/settings?tab=ai')}
                 className={`hidden sm:flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
                   apiConfigured
                     ? 'text-green-600 bg-green-50 hover:bg-green-100 dark:bg-green-900/20 dark:hover:bg-green-900/30'
@@ -133,9 +127,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               >
                 <FiCpu className="w-4 h-4" />
                 <span>{t('nav.aiConfig')}</span>
-                <span
-                  className={`w-2 h-2 rounded-full ${apiConfigured ? 'bg-green-500' : 'bg-red-500'}`}
-                />
+                <span className={`w-2 h-2 rounded-full ${apiConfigured ? 'bg-green-500' : 'bg-red-500'}`} />
               </button>
 
               {/* User Menu */}
@@ -160,7 +152,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                       <button
                         onClick={() => {
                           setUserMenuOpen(false)
-                          setSettingsOpen(true)
+                          navigate('/settings')
                         }}
                         className="w-full flex items-center gap-2 px-4 py-2 text-sm text-foreground-muted dark:text-foreground-dark-muted hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors"
                       >
@@ -254,16 +246,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           <p>{t('landing.footer')}</p>
         </div>
       </footer>
-
-      <SettingsModal isOpen={settingsOpen} onClose={() => setSettingsOpen(false)} />
-      <ApiSettings
-        isOpen={apiSettingsOpen}
-        onClose={() => {
-          setApiSettingsOpen(false)
-          hasStoredApiConfig().then(setApiConfigured).catch(() => setApiConfigured(false))
-        }}
-        onConfigChange={() => hasStoredApiConfig().then(setApiConfigured).catch(() => setApiConfigured(false))}
-      />
     </div>
   )
 }

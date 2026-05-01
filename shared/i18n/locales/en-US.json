@@ -459,7 +459,9 @@
     "messages": {
       "saved": "AI config saved",
       "cleared": "AI config cleared, using server defaults"
-    }
+    },
+    "statusConfigured": "AI service configured and ready",
+    "statusNotConfigured": "AI service not configured, some features unavailable"
   },
   "utils": {
     "fileSizeExceeded": "File size cannot exceed {{maxSizeMB}}MB",
